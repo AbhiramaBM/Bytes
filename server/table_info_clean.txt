@@ -1,0 +1,18 @@
+Table: users
+id, email, password, fullName, phone, role, age, gender, address, city, state, pincode, createdAt, updatedAt, isDeleted
+
+Table: doctors
+id, userId, specialization, registration, experience, clinicId, consultationFee, availability, bio, imageUrl, rating, createdAt, registrationNumber
+
+Table: clinics
+id, name, address, city, state, pincode, phone, email, lat, lng, operatingHours, services, createdAt
+
+Table: appointments
+id, patientId, doctorId, clinicId, appointmentDate, appointmentTime, status, reason, notes, consultationType, createdAt, updatedAt
+
+Table: prescriptions
+id, appointmentId, doctorId, patientId, medicines, dosage, duration, instructions, createdAt
+
+Table: prescription_medicines
+id, prescriptionId, name, dosage, duration
+
