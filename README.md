@@ -28,4 +28,6 @@ SDM College, Ujire
 - PHP
 - MySQL (XAMPP)
 
+#  Solution Overview
+RuralCare Connect is a digital healthcare platform that connects patients in rural and semi-urban areas with doctors through appointment booking, teleconsultation, and digital medical records management.
 
