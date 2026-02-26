@@ -46,6 +46,25 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    message: 'RuralCare Connect API',
+    version: '1.0.0',
+    status: 'running ✅',
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth',
+      doctors: '/api/doctors',
+      clinics: '/api/clinics',
+      patients: '/api/patients',
+      messages: '/api/messages',
+      admin: '/api/admin',
+      ai: '/api/ai'
+    }
+  });
+});
+
 // Routes (setup before starting server)
 app.use('/api/auth', authRoutes);
 app.use('/api/doctors', doctorRoutes);
