@@ -6,6 +6,7 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Database path - always relative to server directory
 const dbPath = path.join(__dirname, '../database/ruralcare.db');
 
 // Ensure database directory exists
@@ -14,39 +15,34 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
+console.log('📁 Database path:', dbPath);
+console.log('📁 Current working directory:', process.cwd());
+console.log('📁 __dirname:', __dirname);
+
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
-    console.error('Error connecting to SQLite:', err.message);
+    console.error('❌ Error connecting to SQLite:', err.message);
   } else {
-    console.log('✅ Connected to SQLite database:', dbPath);
+    console.log('✅ Connected to SQLite database at:', dbPath);
     db.run('PRAGMA foreign_keys = ON'); // Enable foreign key support
   }
 });
 
 export const initDB = () => {
-  // Try multiple possible paths for schema.sql
-  const possiblePaths = [
-    path.join(__dirname, '../database/schema.sql'),
-    path.join(process.cwd(), 'server/database/schema.sql'),
-    path.join(process.cwd(), 'database/schema.sql'),
-    './database/schema.sql',
-  ];
+  // Schema path - relative to __dirname (config/db.js location)
+  const schemaPath = path.join(__dirname, '../database/schema.sql');
+  
+  console.log('📖 Looking for schema at:', schemaPath);
+  console.log('📖 File exists:', fs.existsSync(schemaPath));
 
-  let schemaPath = null;
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      schemaPath = p;
-      console.log('📍 Found schema at:', schemaPath);
-      break;
-    }
-  }
-
-  if (!schemaPath) {
-    console.warn('⚠️  schema.sql not found at:', possiblePaths);
-    return Promise.resolve(); // Continue without schema - tables might already exist
+  if (!fs.existsSync(schemaPath)) {
+    console.error('❌ Schema file not found at:', schemaPath);
+    console.error('❌ Contents of database dir:', fs.readdirSync(path.join(__dirname, '../database')));
+    return Promise.reject(new Error(`Schema file not found at ${schemaPath}`));
   }
 
   const schema = fs.readFileSync(schemaPath, 'utf8');
+  console.log('📖 Schema loaded, size:', schema.length, 'bytes');
 
   return new Promise((resolve, reject) => {
     db.exec(schema, (err) => {
@@ -54,7 +50,7 @@ export const initDB = () => {
         console.error('❌ Error initializing database:', err.message);
         reject(err);
       } else {
-        console.log('✅ Database tables initialized.');
+        console.log('✅ Database tables initialized successfully.');
         resolve();
       }
     });
