@@ -18,22 +18,43 @@ const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error('Error connecting to SQLite:', err.message);
   } else {
-    console.log('Connected to SQLite database.');
+    console.log('✅ Connected to SQLite database:', dbPath);
     db.run('PRAGMA foreign_keys = ON'); // Enable foreign key support
   }
 });
 
 export const initDB = () => {
-  const schemaPath = path.join(__dirname, '../database/schema.sql');
+  // Try multiple possible paths for schema.sql
+  const possiblePaths = [
+    path.join(__dirname, '../database/schema.sql'),
+    path.join(process.cwd(), 'server/database/schema.sql'),
+    path.join(process.cwd(), 'database/schema.sql'),
+    './database/schema.sql',
+  ];
+
+  let schemaPath = null;
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      schemaPath = p;
+      console.log('📍 Found schema at:', schemaPath);
+      break;
+    }
+  }
+
+  if (!schemaPath) {
+    console.warn('⚠️  schema.sql not found at:', possiblePaths);
+    return Promise.resolve(); // Continue without schema - tables might already exist
+  }
+
   const schema = fs.readFileSync(schemaPath, 'utf8');
 
   return new Promise((resolve, reject) => {
     db.exec(schema, (err) => {
       if (err) {
-        console.error('Error initializing database:', err.message);
+        console.error('❌ Error initializing database:', err.message);
         reject(err);
       } else {
-        console.log('Database tables initialized.');
+        console.log('✅ Database tables initialized.');
         resolve();
       }
     });
