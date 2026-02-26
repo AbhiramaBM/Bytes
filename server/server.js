@@ -26,8 +26,11 @@ const corsOptions = {
       'http://localhost:5175',
       'http://127.0.0.1:5173',
       'http://127.0.0.1:5174',
-      'http://127.0.0.1:5175'
-    ];
+      'http://127.0.0.1:5175',
+      process.env.FRONTEND_URL,
+      'https://ruralcare-connect.vercel.app'
+    ].filter(Boolean);
+    
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
