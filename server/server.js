@@ -77,13 +77,11 @@ const startServer = async () => {
       console.log('✅ Server ready to accept requests');
     });
   } catch (error) {
-    console.error('❌ Failed to start server due to database error:');
+    console.error('Failed to start server due to database error:');
     console.error('   Error:', error.message);
     console.error('   Stack:', error.stack);
     process.exit(1);
   }
 };
-
-startServer();
 
 startServer();
