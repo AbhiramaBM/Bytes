@@ -30,14 +30,27 @@ const db = new sqlite3.Database(dbPath, (err) => {
 
 export const initDB = () => {
   // Schema path - relative to __dirname (config/db.js location)
-  const schemaPath = path.join(__dirname, '../database/schema.sql');
+  let schemaPath = path.join(__dirname, '../database/schema.sql');
   
   console.log('📖 Looking for schema at:', schemaPath);
   console.log('📖 File exists:', fs.existsSync(schemaPath));
 
+  // If not found, try with /src prefix removal (Render quirk)
+  if (!fs.existsSync(schemaPath) && __dirname.includes('/src/')) {
+    const correctedDir = __dirname.replace(/\/src\//, '/');
+    schemaPath = path.join(correctedDir, '../database/schema.sql');
+    console.log('📖 Trying alternate path (src fix):', schemaPath);
+    console.log('📖 File exists with alternate:', fs.existsSync(schemaPath));
+  }
+
   if (!fs.existsSync(schemaPath)) {
     console.error('❌ Schema file not found at:', schemaPath);
-    console.error('❌ Contents of database dir:', fs.readdirSync(path.join(__dirname, '../database')));
+    const dbDir = path.dirname(schemaPath);
+    try {
+      console.error('❌ Contents of database dir:', fs.readdirSync(dbDir));
+    } catch (e) {
+      console.error('❌ Cannot read database dir:', dbDir);
+    }
     return Promise.reject(new Error(`Schema file not found at ${schemaPath}`));
   }
 
