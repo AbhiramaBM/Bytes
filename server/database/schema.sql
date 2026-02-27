@@ -15,9 +15,14 @@ CREATE TABLE IF NOT EXISTS users (
     state TEXT,
     pincode TEXT,
     isDeleted BOOLEAN DEFAULT 0,
+    otp TEXT,
+    otpExpiry DATETIME,
+    isVerified BOOLEAN DEFAULT 0,
+    otpAttempts INTEGER DEFAULT 0,
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
     updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
 
 -- Doctors table (Specialized profile)
 CREATE TABLE IF NOT EXISTS doctors (

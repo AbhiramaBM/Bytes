@@ -30,7 +30,7 @@ const corsOptions = {
       process.env.FRONTEND_URL,
       'https://ruralcare-connect.vercel.app'
     ].filter(Boolean);
-    
+
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -76,29 +76,24 @@ app.use('/api/ai', aiRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'RuralCare Connect Server is running ✅' });
+  res.json({ status: 'RuralCare Connect Server is running' });
 });
 
 // Error handling
 app.use(errorHandler);
 
-// Initialize SQLite then start server
+// Initialize MongoDB then start server
 const startServer = async () => {
   try {
-    console.log('🔧 Initializing database...');
+    console.log('Initializing MongoDB...');
     await initDB();
-    console.log('✅ Database initialized successfully');
+    console.log('MongoDB Connected successfully');
 
     app.listen(PORT, () => {
-      console.log(`🏥 RuralCare Connect Server (SQLite) running on port ${PORT}`);
-      console.log(`📍 API Base URL: http://localhost:${PORT}/api`);
-      console.log(`🌐 CORS Origin: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
-      console.log('✅ Server ready to accept requests');
+      console.log(`RuralCare Connect Server running on port ${PORT}`);
     });
   } catch (error) {
-    console.error('Failed to start server due to database error:');
-    console.error('   Error:', error.message);
-    console.error('   Stack:', error.stack);
+    console.error('Failed to start server:', error.message);
     process.exit(1);
   }
 };

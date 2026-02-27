@@ -21,7 +21,6 @@ export const Footer = () => {
             <ul className="space-y-2 text-sm">
               <li><a href="/doctors" className="hover:text-white transition">Find Doctors</a></li>
               <li><a href="/clinics" className="hover:text-white transition">Nearby Clinics</a></li>
-              <li><a href="#" className="hover:text-white transition">Health Tips</a></li>
               <li><a href="#" className="hover:text-white transition">About Us</a></li>
             </ul>
           </div>

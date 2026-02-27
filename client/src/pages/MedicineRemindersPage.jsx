@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Pill, Plus, Trash2 } from 'lucide-react';
-import Navbar from '../components/Navbar';
-import Sidebar from '../components/Sidebar';
-import Footer from '../components/Footer';
 import { Card, Button, Input, Select, Textarea, LoadingSpinner } from '../components/UI';
 import apiClient from '../utils/apiClient';
 
@@ -91,145 +88,143 @@ export const MedicineRemindersPage = () => {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <>
-      <Navbar />
-      <div className="flex">
-        <Sidebar />
-        <main className="flex-1 md:ml-64 bg-gray-50 min-h-screen">
-          <div className="container mx-auto px-4 py-10 max-w-3xl">
-            <div className="flex justify-between items-center mb-10">
-              <h1 className="text-4xl font-bold">Medicine Reminders</h1>
-              {!showForm && (
-                <Button variant="primary" onClick={() => setShowForm(true)}>
-                  <Plus size={18} className="mr-2" />
-                  Add Reminder
-                </Button>
-              )}
+    <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <div className="flex justify-between items-center mb-10">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800 font-display">Medication Reminders</h1>
+          <p className="text-gray-500 text-sm font-medium mt-1">Never miss your doses</p>
+        </div>
+        {!showForm && (
+          <Button variant="primary" onClick={() => setShowForm(true)} className="font-bold">
+            <Plus size={18} className="mr-2" />
+            Add New
+          </Button>
+        )}
+      </div>
+
+      {showForm && (
+        <Card className="mb-10 animate-slideDown">
+          <h2 className="text-xl font-bold mb-6 text-gray-800">Add New Reminder</h2>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <Input
+              label="Reminder Title"
+              name="title"
+              value={formData.title}
+              onChange={handleChange}
+              placeholder="e.g., Take Vitamin C"
+              required
+            />
+
+            <Textarea
+              label="Description / Dosage"
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              placeholder="e.g., 1 tablet after lunch"
+              rows="2"
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Reminder Date"
+                type="date"
+                name="reminder_date"
+                value={formData.reminder_date}
+                onChange={handleChange}
+                required
+              />
+              <Input
+                label="Reminder Time"
+                type="time"
+                name="reminder_time"
+                value={formData.reminder_time}
+                onChange={handleChange}
+                required
+              />
             </div>
 
-            {showForm && (
-              <Card className="mb-10">
-                <h2 className="text-2xl font-bold mb-6">Add New Reminder</h2>
-                <form onSubmit={handleSubmit}>
-                  <Input
-                    label="Reminder Title"
-                    name="title"
-                    value={formData.title}
-                    onChange={handleChange}
-                    placeholder="e.g., Take Vitamin C"
-                    required
-                  />
+            <div className="flex gap-4 pt-2">
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={submitting}
+                className="flex-1 font-bold"
+              >
+                {submitting ? 'Adding...' : 'Add Reminder'}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setShowForm(false)}
+                className="flex-1 font-bold"
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </Card>
+      )}
 
-                  <Textarea
-                    label="Description / Dosage"
-                    name="description"
-                    value={formData.description}
-                    onChange={handleChange}
-                    placeholder="e.g., 1 tablet after lunch"
-                    rows="2"
-                  />
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <Input
-                      label="Reminder Date"
-                      type="date"
-                      name="reminder_date"
-                      value={formData.reminder_date}
-                      onChange={handleChange}
-                      required
-                    />
-                    <Input
-                      label="Reminder Time"
-                      type="time"
-                      name="reminder_time"
-                      value={formData.reminder_time}
-                      onChange={handleChange}
-                      required
-                    />
+      {reminders.length > 0 ? (
+        <div className="grid gap-4">
+          {reminders.map((reminder) => (
+            <Card key={reminder.id} className={`${reminder.status === 'completed' ? 'opacity-60 bg-gray-50' : 'hover:shadow-md'} transition-all`}>
+              <div className="flex justify-between items-start">
+                <div className="flex items-start gap-4">
+                  <div className={`p-3 rounded-xl ${reminder.status === 'active' ? 'bg-blue-50' : 'bg-gray-100'}`}>
+                    <Pill size={24} className={reminder.status === 'active' ? 'text-blue-600' : 'text-gray-400'} />
                   </div>
-
-                  <div className="flex gap-4">
-                    <Button
-                      type="submit"
-                      variant="primary"
-                      disabled={submitting}
-                      className="flex-1"
-                    >
-                      {submitting ? 'Adding...' : 'Add Reminder'}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => setShowForm(false)}
-                      className="flex-1"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </form>
-              </Card>
-            )}
-
-            {reminders.length > 0 ? (
-              <div className="grid gap-4">
-                {reminders.map((reminder) => (
-                  <Card key={reminder.id} className={reminder.status === 'completed' ? 'opacity-60 bg-gray-100' : ''}>
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-start gap-4">
-                        <Pill size={32} className={`mt-1 ${reminder.status === 'active' ? 'text-blue-600' : 'text-gray-400'}`} />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className={`text-xl font-bold ${reminder.status === 'completed' ? 'line-through' : ''}`}>
-                              {reminder.title}
-                            </h3>
-                            <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${reminder.status === 'active' ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-600'
-                              }`}>
-                              {reminder.status}
-                            </span>
-                          </div>
-                          <p className="text-gray-600 mt-1">{reminder.description}</p>
-                          <div className="flex gap-4 mt-3 text-sm">
-                            <div className="flex items-center gap-1">
-                              <span className="text-gray-500 font-medium">Date:</span>
-                              <span className="font-semibold">{reminder.reminder_date}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <span className="text-gray-500 font-medium">Time:</span>
-                              <span className="font-semibold">{reminder.reminder_time}</span>
-                            </div>
-                          </div>
-                        </div>
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <h3 className={`text-xl font-bold ${reminder.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+                        {reminder.title}
+                      </h3>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest ${reminder.status === 'active' ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-600'
+                        }`}>
+                        {reminder.status}
+                      </span>
+                    </div>
+                    <p className="text-gray-600 mt-1 font-medium italic">{reminder.description}</p>
+                    <div className="flex gap-6 mt-4 text-xs font-bold text-gray-400">
+                      <div className="flex items-center gap-1.5">
+                        <span>Date:</span>
+                        <span className="text-gray-700">{reminder.reminder_date}</span>
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant={reminder.status === 'active' ? 'success' : 'secondary'}
-                          size="sm"
-                          onClick={() => handleToggleStatus(reminder)}
-                        >
-                          {reminder.status === 'active' ? 'Complete' : 'Reopen'}
-                        </Button>
-                        <Button variant="danger" size="sm" onClick={() => handleDelete(reminder.id)}>
-                          <Trash2 size={16} />
-                        </Button>
+                      <div className="flex items-center gap-1.5">
+                        <span>Time:</span>
+                        <span className="text-gray-700">{reminder.reminder_time}</span>
                       </div>
                     </div>
-                  </Card>
-                ))}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant={reminder.status === 'active' ? 'success' : 'secondary'}
+                    size="sm"
+                    onClick={() => handleToggleStatus(reminder)}
+                    className="font-bold text-xs"
+                  >
+                    {reminder.status === 'active' ? 'Check' : 'Reopen'}
+                  </Button>
+                  <Button variant="danger" size="sm" onClick={() => handleDelete(reminder.id)} className="p-2">
+                    <Trash2 size={16} />
+                  </Button>
+                </div>
               </div>
-            ) : (
-              <Card className="text-center py-12">
-                <Pill size={48} className="mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-600 text-lg mb-4">No medicine reminders set yet</p>
-                <Button variant="primary" onClick={() => setShowForm(true)}>
-                  Add Your First Reminder
-                </Button>
-              </Card>
-            )}
-          </div>
-        </main>
-      </div>
-      <Footer />
-    </>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="text-center py-20 bg-gray-50/30 border-dashed border-2">
+          <Pill size={64} className="mx-auto text-gray-200 mb-6" />
+          <p className="text-gray-500 text-xl font-bold">No reminders set yet</p>
+          <p className="text-gray-400 text-sm mt-2 mb-8 max-w-xs mx-auto">Create medicine reminders to stay on top of your treatment plan.</p>
+          <Button variant="primary" onClick={() => setShowForm(true)} className="font-bold">
+            Add Your First Reminder
+          </Button>
+        </Card>
+      )}
+    </div>
   );
 };
 

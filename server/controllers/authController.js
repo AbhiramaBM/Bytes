@@ -1,53 +1,53 @@
 import bcryptjs from 'bcryptjs';
-import { v4 as uuidv4 } from 'uuid';
-import { query, get, run } from '../config/db.js';
+import User from '../models/User.js';
 import { generateToken } from '../utils/tokenUtils.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { logAction } from '../utils/auditLogger.js';
 
 export const register = async (req, res) => {
   try {
-    const { email, password, fullName, phone } = req.body;
+    const { email, password, fullName } = req.body;
 
     if (!email || !password || !fullName) {
-      return sendError(res, 'Required fields missing', 400);
+      return sendError(res, 'Required fields missing: email, password, and fullName are required.', 400);
     }
-
-    if (password.length < 6) return sendError(res, 'Password too short', 400);
 
     const emailClean = email.toLowerCase().trim();
-    const existing = await get('SELECT id FROM users WHERE email = ?', [emailClean]);
-    if (existing) return sendError(res, 'Email already registered', 400);
-
-    const hashed = await bcryptjs.hash(password, 10);
-    const userId = uuidv4();
-    const patientProfileId = uuidv4();
-
-    await run('BEGIN TRANSACTION');
-    try {
-      await run(
-        'INSERT INTO users (id, email, password, fullName, phone, role) VALUES (?, ?, ?, ?, ?, ?)',
-        [userId, emailClean, hashed, fullName.trim(), phone, 'patient']
-      );
-
-      // Create patient profile
-      await run(
-        'INSERT INTO patients (id, user_id) VALUES (?, ?)',
-        [patientProfileId, userId]
-      );
-
-      await run('COMMIT');
-    } catch (err) {
-      await run('ROLLBACK');
-      throw err;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailClean)) {
+      return sendError(res, 'Invalid email format.', 400);
     }
 
-    await logAction(userId, 'REGISTER', { email: emailClean, role: 'patient' });
-    const token = generateToken(userId, 'patient');
-    sendSuccess(res, { userId, email: emailClean, fullName, role: 'patient', token }, 'User registered successfully', 201);
+    if (password.length < 6) {
+      return sendError(res, 'Password is too short. Minimum 6 characters required.', 400);
+    }
+
+    const existing = await User.findOne({ email: emailClean });
+    if (existing) {
+      return sendError(res, 'Email already registered. Please login instead.', 400);
+    }
+
+    const hashed = await bcryptjs.hash(password, 10);
+
+    const user = new User({
+      email: emailClean,
+      password: hashed,
+      fullName: fullName.trim(),
+      role: 'patient',
+      isVerified: true
+    });
+
+    await user.save();
+
+    await logAction(user._id, 'REGISTER', { email: emailClean, role: 'patient' });
+
+    sendSuccess(res, {
+      userId: user._id,
+      email: emailClean,
+      fullName: user.fullName,
+      role: user.role
+    }, 'User registered successfully.', 201);
   } catch (error) {
-    console.error('Registration error:', error);
-    sendError(res, 'Registration failed', 500, error);
+    sendError(res, 'Registration failed due to server error.', 500, error);
   }
 };
 
@@ -57,24 +57,23 @@ export const login = async (req, res) => {
     if (!email || !password) return sendError(res, 'Email and password are required', 400);
 
     const emailClean = email.toLowerCase().trim();
-    const user = await get('SELECT * FROM users WHERE email = ?', [emailClean]);
+    const user = await User.findOne({ email: emailClean });
 
     if (!user) {
       return sendError(res, 'Invalid credentials', 401);
     }
 
-    if (user.isDeleted) {
+    if (!user.isActive) {
       return sendError(res, 'Account deactivated. Please contact support.', 403);
     }
 
     const valid = await bcryptjs.compare(password, user.password);
     if (!valid) return sendError(res, 'Invalid credentials', 401);
 
-    const token = generateToken(user.id, user.role);
-    await logAction(user.id, 'LOGIN', { email: user.email, role: user.role });
-    sendSuccess(res, { userId: user.id, email: user.email, fullName: user.fullName, role: user.role, token }, 'Login successful');
+    const token = generateToken(user._id, user.role);
+    await logAction(user._id, 'LOGIN', { email: user.email, role: user.role });
+    sendSuccess(res, { userId: user._id, email: user.email, fullName: user.fullName, role: user.role, token }, 'Login successful');
   } catch (error) {
-    console.error('Login error:', error);
     sendError(res, 'Login failed', 500, error);
   }
 };
@@ -82,7 +81,7 @@ export const login = async (req, res) => {
 export const getProfile = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const user = await get('SELECT id, email, fullName, phone, role, age, gender, address, city, state, pincode FROM users WHERE id = ? AND isDeleted = 0', [userId]);
+    const user = await User.findById(userId).select('-password -otp -otpExpiry -otpAttempts');
     if (!user) return sendError(res, 'User not found', 404);
     sendSuccess(res, user, 'Profile fetched');
   } catch (error) {
@@ -95,42 +94,42 @@ export const updateProfile = async (req, res) => {
     const userId = req.user.userId;
     const { fullName, email, phone, age, gender, address, city, state, pincode } = req.body;
 
-    // 1. Email validation if provided
     if (email) {
       const emailClean = email.toLowerCase().trim();
-      if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(emailClean)) {
-        return sendError(res, 'Invalid email format', 400);
-      }
-
-      const existing = await get('SELECT id FROM users WHERE email = ? AND id != ?', [emailClean, userId]);
-      if (existing) return sendError(res, 'Email already in use by another account', 400);
+      const existing = await User.findOne({ email: emailClean, _id: { $ne: userId } });
+      if (existing) return sendError(res, 'Email already in use', 400);
       req.body.email = emailClean;
     }
 
-    // 2. Phone validation if provided
-    if (phone && !/^\+?[0-9]{10,15}$/.test(phone)) {
-      return sendError(res, 'Invalid phone number format', 400);
+    if (phone) {
+      const phoneClean = phone.trim();
+      if (!/^\+?[0-9]{10,15}$/.test(phoneClean)) return sendError(res, 'Invalid phone format', 400);
+      const existing = await User.findOne({ phone: phoneClean, _id: { $ne: userId } });
+      if (existing) return sendError(res, 'Phone already in use', 400);
+      req.body.phone = phoneClean;
     }
 
-    await run(
-      `UPDATE users SET 
-        fullName = COALESCE(?, fullName), 
-        email = COALESCE(?, email),
-        phone = COALESCE(?, phone), 
-        age = COALESCE(?, age), 
-        gender = COALESCE(?, gender), 
-        address = COALESCE(?, address), 
-        city = COALESCE(?, city), 
-        state = COALESCE(?, state), 
-        pincode = COALESCE(?, pincode),
-        updatedAt = CURRENT_TIMESTAMP
-      WHERE id = ?`,
-      [fullName, req.body.email || null, phone, age, gender, address, city, state, pincode, userId]
-    );
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        fullName,
+        email: req.body.email,
+        phone: req.body.phone,
+        age,
+        gender,
+        address,
+        city,
+        state,
+        pincode
+      },
+      { new: true, runValidators: true }
+    ).select('-password -otp -otpExpiry -otpAttempts');
 
-    const user = await get('SELECT id, email, fullName, phone, role, age, gender, address, city, state, pincode FROM users WHERE id = ?', [userId]);
-    sendSuccess(res, user, 'Profile updated');
+    if (!updatedUser) return sendError(res, 'User not found', 404);
+    sendSuccess(res, updatedUser, 'Profile updated');
   } catch (error) {
     sendError(res, 'Error updating profile', 500, error);
   }
 };
+
+

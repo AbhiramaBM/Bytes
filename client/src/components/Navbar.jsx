@@ -1,107 +1,161 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Menu, X, LogOut } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { Menu, X, LogOut, User as UserIcon, Bell } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
-export const Navbar = () => {
+export const Navbar = ({ toggleSidebar }) => {
   const { isAuthenticated, user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
     window.location.href = '/';
   };
 
+  const navLinks = [
+    { name: 'Doctors', path: '/doctors' },
+    { name: 'Clinics', path: '/clinics' },
+  ];
+
+  const isActive = (path) => location.pathname === path;
+
   return (
-    <nav className="bg-white shadow-md sticky top-0 z-50">
-      <div className="container mx-auto px-4 py-3">
-        <div className="flex justify-between items-center">
-          <Link to="/" className="text-2xl font-bold text-blue-600">
-            RuralCare<span className="text-green-600">Connect</span>
-          </Link>
+    <nav className="bg-white/80 backdrop-blur-md border-b border-gray-100 sticky top-0 z-50 transition-all duration-300">
+      <div className="container mx-auto px-4 lg:px-6">
+        <div className="flex justify-between items-center h-16">
+          <div className="flex items-center gap-4">
+            {isAuthenticated && (
+              <button
+                onClick={toggleSidebar}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors md:block"
+                aria-label="Toggle Sidebar"
+              >
+                <Menu size={22} className="text-gray-600" />
+              </button>
+            )}
+            <Link to="/" className="flex items-center gap-2 group">
+              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center transform group-hover:rotate-6 transition-transform shadow-lg shadow-blue-200">
+                <HeartPulse size={24} className="text-white" />
+              </div>
+              <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-blue-500">
+                RuralCare<span className="text-green-600">Connect</span>
+              </span>
+            </Link>
+          </div>
 
           {/* Desktop Menu */}
-          <div className="hidden md:flex gap-6 items-center">
-            <Link to="/doctors" className="text-gray-600 hover:text-blue-600 transition">Doctors</Link>
-            <Link to="/clinics" className="text-gray-600 hover:text-blue-600 transition">Clinics</Link>
+          <div className="hidden md:flex gap-1 items-center">
+            {navLinks.map((link) => (
+              <Link
+                key={link.path}
+                to={link.path}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${isActive(link.path)
+                    ? 'text-blue-600 bg-blue-50'
+                    : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+                  }`}
+              >
+                {link.name}
+              </Link>
+            ))}
+
+            <div className="h-6 w-px bg-gray-200 mx-2"></div>
 
             {isAuthenticated ? (
-              <>
-                {user?.role === 'patient' && (
-                  <>
-                    <Link to="/patient/dashboard" className="text-gray-600 hover:text-blue-600 transition">Dashboard</Link>
-                    <Link to="/patient/appointments" className="text-gray-600 hover:text-blue-600 transition">Appointments</Link>
-                  </>
-                )}
-                {user?.role === 'doctor' && (
-                  <Link to="/doctor/dashboard" className="text-gray-600 hover:text-blue-600 transition">Dashboard</Link>
-                )}
-                {user?.role === 'admin' && (
-                  <Link to="/admin/dashboard" className="text-gray-600 hover:text-blue-600 transition">Admin</Link>
-                )}
-                {user?.role === 'patient' && (
-                  <Link to="/patient/ai-chat" className="text-gray-600 hover:text-blue-600 transition">AI Health Assistant</Link>
-                )}
-                {user?.role === 'patient' && (
-                <Link to="/patient/profile" className="text-gray-600 hover:text-blue-600 transition">Profile</Link>
-                )}<button
-                  onClick={handleLogout}
-                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition flex items-center gap-2"
-                >
-                
-                  <LogOut size={18} />
-                  Logout
+              <div className="flex items-center gap-3">
+                <button className="p-2 text-gray-500 hover:text-blue-600 hover:bg-gray-50 rounded-full transition-all relative">
+                  <Bell size={20} />
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
                 </button>
-              </>
+                <Link
+                  to={user?.role === 'admin' ? '/admin/dashboard' : `/${user?.role}/dashboard`}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-50 hover:bg-blue-50 border border-gray-200 transition-all"
+                >
+                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                    <UserIcon size={16} />
+                  </div>
+                  <div className="text-left hidden lg:block">
+                    <p className="text-xs font-bold text-gray-900 leading-tight">{user?.fullName?.split(' ')[0]}</p>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">{user?.role}</p>
+                  </div>
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                  title="Logout"
+                >
+                  <LogOut size={20} />
+                </button>
+              </div>
             ) : (
-              <>
-                <Link to="/login" className="text-gray-600 hover:text-blue-600 transition">Login</Link>
-                <Link to="/register" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">Register</Link>
-              </>
+              <div className="flex items-center gap-3">
+                <Link to="/login" className="text-gray-600 hover:text-blue-600 font-medium px-4 py-2">
+                  Login
+                </Link>
+                <Link
+                  to="/register"
+                  className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200 transition-all transform hover:-translate-y-0.5"
+                >
+                  Join Now
+                </Link>
+              </div>
             )}
           </div>
 
           {/* Mobile Menu Toggle */}
-          <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden">
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="md:hidden p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+          >
             {menuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
 
         {/* Mobile Menu */}
         {menuOpen && (
-          <div className="md:hidden mt-4 pb-4 border-t pt-4">
-            <Link to="/doctors" className="block text-gray-600 hover:text-blue-600 py-2 transition">Doctors</Link>
-            <Link to="/clinics" className="block text-gray-600 hover:text-blue-600 py-2 transition">Clinics</Link>
+          <div className="md:hidden py-4 space-y-2 border-t border-gray-100 animate-slideDown">
+            {navLinks.map((link) => (
+              <Link
+                key={link.path}
+                to={link.path}
+                onClick={() => setMenuOpen(false)}
+                className={`block px-4 py-3 rounded-xl text-base font-medium ${isActive(link.path)
+                    ? 'text-blue-600 bg-blue-50'
+                    : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+                  }`}
+              >
+                {link.name}
+              </Link>
+            ))}
 
-            {isAuthenticated ? (
-              <>
-                {user?.role === 'patient' && (
-                  <>
-                    <Link to="/patient/dashboard" className="block text-gray-600 hover:text-blue-600 py-2 transition">Dashboard</Link>
-                    <Link to="/patient/appointments" className="block text-gray-600 hover:text-blue-600 py-2 transition">Appointments</Link>
-                  </>
-                )}
-                {user?.role === 'doctor' && (
-                  <Link to="/doctor/dashboard" className="block text-gray-600 hover:text-blue-600 py-2 transition">Dashboard</Link>
-                )}
-                {user?.role === 'admin' && (
-                  <Link to="/admin/dashboard" className="block text-gray-600 hover:text-blue-600 py-2 transition">Admin</Link>
-                )}
-                
-                <Link to="/patient/profile" className="block text-gray-600 hover:text-blue-600 py-2 transition">Profile</Link>
-                <button
-                  onClick={handleLogout}
-                  className="w-full bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition mt-2"
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <>
-                <Link to="/login" className="block text-gray-600 hover:text-blue-600 py-2 transition">Login</Link>
-                <Link to="/register" className="block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition mt-2">Register</Link>
-              </>
-            )}
+            <div className="border-t border-gray-50 my-2 pt-2 px-4">
+              {isAuthenticated ? (
+                <>
+                  <Link
+                    to={`/${user?.role}/dashboard`}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-3 py-3 text-gray-600"
+                  >
+                    <UserIcon size={20} /> Dashboard
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center justify-center gap-2 bg-red-50 text-red-600 py-3 rounded-xl font-semibold mt-4 transition-colors"
+                  >
+                    <LogOut size={20} /> Logout
+                  </button>
+                </>
+              ) : (
+                <div className="flex flex-col gap-2 mt-2">
+                  <Link to="/login" onClick={() => setMenuOpen(false)} className="w-full text-center py-3 text-gray-600 font-medium rounded-xl hover:bg-gray-50">
+                    Login
+                  </Link>
+                  <Link to="/register" onClick={() => setMenuOpen(false)} className="w-full text-center py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-100">
+                    Get Started
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -109,4 +163,23 @@ export const Navbar = () => {
   );
 };
 
+// SVG Icon Helper
+const HeartPulse = ({ size, className }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+    <path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27" />
+  </svg>
+);
+
 export default Navbar;
+

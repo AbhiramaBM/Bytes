@@ -1,17 +1,15 @@
-import { v4 as uuidv4 } from 'uuid';
-import { query, get, run } from '../config/db.js';
+import User from '../models/User.js';
+import Appointment from '../models/Appointment.js';
+import Clinic from '../models/Clinic.js';
+import Prescription from '../models/Prescription.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { logAction } from '../utils/auditLogger.js';
 
 // Get all doctors (for public listing)
 export const getAllDoctors = async (req, res) => {
   try {
-    const doctors = await query(`
-      SELECT d.id, d.specialization, d.experience, d.consultationFee, d.isActive, u.fullName, u.email, u.phone
-      FROM doctors d
-      JOIN users u ON d.user_id = u.id
-      WHERE d.isActive = 1 AND u.isDeleted = 0
-    `);
+    const doctors = await User.find({ role: 'doctor', isActive: { $ne: false } })
+      .select('fullName email phone specialization experience consultationFee isActive');
 
     sendSuccess(res, doctors, 'Doctors fetched successfully');
   } catch (error) {
@@ -24,12 +22,8 @@ export const getAllDoctors = async (req, res) => {
 export const getDoctorById = async (req, res) => {
   try {
     const { id } = req.params;
-    const doctor = await get(`
-      SELECT d.*, u.fullName, u.email, u.phone
-      FROM doctors d
-      JOIN users u ON d.user_id = u.id
-      WHERE d.id = ? AND u.isDeleted = 0
-    `, [id]);
+    const doctor = await User.findOne({ _id: id, role: 'doctor' })
+      .select('fullName email phone specialization experience consultationFee isActive');
 
     if (!doctor) return sendError(res, 'Doctor not found', 404);
     sendSuccess(res, doctor, 'Doctor fetched successfully');
@@ -42,35 +36,21 @@ export const getDoctorById = async (req, res) => {
 export const getDoctorAppointments = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const doctor = await get('SELECT id FROM doctors WHERE user_id = ?', [userId]);
-    if (!doctor) return sendError(res, 'Doctor profile not found', 404);
-
-    const doctorId = doctor.id;
     const { appointmentId } = req.params;
 
     if (appointmentId) {
-      const appointment = await get(`
-        SELECT a.*, pu.fullName as patientName, pu.phone as patientPhone, pu.age, pu.gender, c.name as clinicName, p.medicalHistory, p.bloodGroup
-        FROM appointments a
-        JOIN patients p ON a.patient_id = p.id
-        JOIN users pu ON p.user_id = pu.id
-        LEFT JOIN clinics c ON a.clinic_id = c.id
-        WHERE a.id = ? AND a.doctor_id = ?
-      `, [appointmentId, doctorId]);
+      const appointment = await Appointment.findOne({ _id: appointmentId, doctorId: userId })
+        .populate('patientId', 'fullName phone age gender bloodGroup medicalHistory')
+        .populate('clinicId', 'name');
 
       if (!appointment) return sendError(res, 'Appointment not found', 404);
       return sendSuccess(res, appointment, 'Appointment fetched');
     }
 
-    const appointments = await query(`
-      SELECT a.*, pu.fullName as patientName, pu.phone as patientPhone, c.name as clinicName
-      FROM appointments a
-      JOIN patients p ON a.patient_id = p.id
-      JOIN users pu ON p.user_id = pu.id
-      LEFT JOIN clinics c ON a.clinic_id = c.id
-      WHERE a.doctor_id = ?
-      ORDER BY a.appointmentDate DESC, a.appointmentTime ASC
-    `, [doctorId]);
+    const appointments = await Appointment.find({ doctorId: userId })
+      .populate('patientId', 'fullName phone')
+      .populate('clinicId', 'name')
+      .sort({ appointmentDate: -1, appointmentTime: 1 });
 
     sendSuccess(res, appointments, 'Appointments fetched successfully');
   } catch (error) {
@@ -84,13 +64,11 @@ export const updateAppointmentStatus = async (req, res) => {
     const { appointmentId } = req.params;
     const { status } = req.body;
     const userId = req.user.userId;
-    const doctor = await get('SELECT id FROM doctors WHERE user_id = ?', [userId]);
-    if (!doctor) return sendError(res, 'Unauthorized', 403);
 
     const validStatuses = ['approved', 'rejected', 'appointed'];
     if (!validStatuses.includes(status)) return sendError(res, 'Invalid status', 400);
 
-    const appointment = await get('SELECT status FROM appointments WHERE id = ? AND doctor_id = ?', [appointmentId, doctor.id]);
+    const appointment = await Appointment.findOne({ _id: appointmentId, doctorId: userId });
     if (!appointment) return sendError(res, 'Appointment not found', 404);
 
     if (status === 'approved' || status === 'rejected') {
@@ -99,7 +77,9 @@ export const updateAppointmentStatus = async (req, res) => {
       if (appointment.status !== 'approved') return sendError(res, 'Only approved appointments can be marked as appointed', 400);
     }
 
-    await run('UPDATE appointments SET status = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?', [status, appointmentId]);
+    appointment.status = status;
+    await appointment.save();
+
     await logAction(userId, 'UPDATE_APPOINTMENT_STATUS', { appointmentId, status });
     sendSuccess(res, { status }, 'Appointment status updated successfully');
   } catch (error) {
@@ -112,10 +92,8 @@ export const addPrescription = async (req, res) => {
   try {
     const { appointmentId, diagnosis, medicines = [], notes } = req.body;
     const userId = req.user.userId;
-    const doctor = await get('SELECT id FROM doctors WHERE user_id = ?', [userId]);
-    if (!doctor) return sendError(res, 'Unauthorized', 403);
 
-    const appointment = await get('SELECT * FROM appointments WHERE id = ? AND doctor_id = ?', [appointmentId, doctor.id]);
+    const appointment = await Appointment.findOne({ _id: appointmentId, doctorId: userId });
     if (!appointment) return sendError(res, 'Appointment not found', 404);
 
     if (!['approved', 'appointed'].includes(appointment.status)) {
@@ -126,7 +104,6 @@ export const addPrescription = async (req, res) => {
       return sendError(res, 'Diagnosis is required', 400);
     }
 
-    // Validate medicines
     const validMedicines = medicines.filter(m => m.name && m.name.trim());
     if (validMedicines.length === 0) {
       return sendError(res, 'At least one medicine is required', 400);
@@ -139,35 +116,21 @@ export const addPrescription = async (req, res) => {
       }
     }
 
-    const prescriptionId = uuidv4();
+    const prescription = new Prescription({
+      appointmentId,
+      patientId: appointment.patientId,
+      doctorId: userId,
+      diagnosis,
+      medicines: validMedicines,
+      notes: notes || ''
+    });
 
-    await run('BEGIN TRANSACTION');
-    try {
-      await run(
-        'INSERT INTO prescriptions (id, appointment_id, patient_id, doctor_id, diagnosis, notes) VALUES (?, ?, ?, ?, ?, ?)',
-        [prescriptionId, appointmentId, appointment.patient_id, doctor.id, diagnosis, notes || '']
-      );
+    await prescription.save();
 
-      for (const med of validMedicines) {
-        await run(
-          'INSERT INTO prescription_medicines (prescription_id, name, dosage, frequency, duration) VALUES (?, ?, ?, ?, ?)',
-          [prescriptionId, med.name.trim(), med.dosage.trim(), med.frequency.trim(), med.duration.trim()]
-        );
-      }
+    appointment.status = 'completed';
+    await appointment.save();
 
-      await run('UPDATE appointments SET status = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?', ['completed', appointmentId]);
-
-      await run('COMMIT');
-      await logAction(userId, 'CREATE_PRESCRIPTION', { appointmentId, prescriptionId, medicineCount: validMedicines.length });
-    } catch (err) {
-      await run('ROLLBACK');
-      throw err;
-    }
-
-    // Return full prescription with medicines
-    const prescription = await get('SELECT * FROM prescriptions WHERE id = ?', [prescriptionId]);
-    const savedMedicines = await query('SELECT * FROM prescription_medicines WHERE prescription_id = ?', [prescriptionId]);
-    prescription.medicines = savedMedicines;
+    await logAction(userId, 'CREATE_PRESCRIPTION', { appointmentId, prescriptionId: prescription._id, medicineCount: validMedicines.length });
 
     sendSuccess(res, prescription, 'Prescription added and appointment completed successfully', 201);
   } catch (error) {
@@ -180,11 +143,8 @@ export const addPrescription = async (req, res) => {
 export const getPrescriptionByAppointmentId = async (req, res) => {
   try {
     const { appointmentId } = req.params;
-    const prescription = await get('SELECT * FROM prescriptions WHERE appointment_id = ?', [appointmentId]);
+    const prescription = await Prescription.findOne({ appointmentId });
     if (!prescription) return sendSuccess(res, null, 'No prescription found');
-
-    const medicines = await query('SELECT * FROM prescription_medicines WHERE prescription_id = ?', [prescription.id]);
-    prescription.medicines = medicines;
 
     sendSuccess(res, prescription, 'Prescription fetched');
   } catch (error) {
@@ -197,23 +157,16 @@ export const logPatientCall = async (req, res) => {
   try {
     const { appointmentId } = req.params;
     const userId = req.user.userId;
-    const doctor = await get('SELECT id FROM doctors WHERE user_id = ?', [userId]);
-    if (!doctor) return sendError(res, 'Unauthorized', 403);
 
-    const appointment = await get(`
-      SELECT a.id, pu.fullName as patientName, pu.phone as patientPhone
-      FROM appointments a
-      JOIN patients p ON a.patient_id = p.id
-      JOIN users pu ON p.user_id = pu.id
-      WHERE a.id = ? AND a.doctor_id = ?
-    `, [appointmentId, doctor.id]);
+    const appointment = await Appointment.findOne({ _id: appointmentId, doctorId: userId })
+      .populate('patientId', 'fullName phone');
 
     if (!appointment) return sendError(res, 'Appointment not found', 404);
 
     await logAction(userId, 'CALL_PATIENT', {
       appointmentId,
-      patientName: appointment.patientName,
-      patientPhone: appointment.patientPhone
+      patientName: appointment.patientId.fullName,
+      patientPhone: appointment.patientId.phone
     });
 
     sendSuccess(res, null, 'Call logged successfully');
@@ -229,3 +182,4 @@ export const updatePatientRecords = async (req, res) => {
     sendError(res, 'Error updating records', 500, error);
   }
 };
+

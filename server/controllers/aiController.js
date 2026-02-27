@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { v4 as uuidv4 } from 'uuid';
-import { query, run, get } from '../config/db.js';
+import AIConversation from '../models/AIConversation.js';
+import AIMessage from '../models/AIMessage.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 
 const SYSTEM_PROMPT = `You are a professional AI Health Assistant for RuralCare Connect, a rural healthcare platform.
@@ -79,7 +79,6 @@ async function getAIResponse(message, history) {
         systemInstruction: { role: 'user', parts: [{ text: SYSTEM_PROMPT }] }
     });
 
-    // Retry up to 2 times
     for (let attempt = 0; attempt < 2; attempt++) {
         try {
             const result = await chat.sendMessage(message.trim());
@@ -89,7 +88,6 @@ async function getAIResponse(message, history) {
             if (isRateLimit && attempt < 1) {
                 await new Promise(r => setTimeout(r, 3000));
             } else {
-                console.log(`[AI] Gemini failed (attempt ${attempt + 1}): ${err.message?.substring(0, 100)}`);
                 return null; // Fall back to local
             }
         }
@@ -106,50 +104,49 @@ export const chatWithAI = async (req, res) => {
             return sendError(res, 'Message cannot be empty', 400);
         }
 
-        // Get or create conversation
-        let convId = conversationId;
-        if (!convId) {
-            convId = uuidv4();
-            await run(
-                'INSERT INTO ai_conversations (id, user_id, title) VALUES (?, ?, ?)',
-                [convId, userId, message.substring(0, 50)]
-            );
+        let conversation;
+        if (!conversationId) {
+            conversation = new AIConversation({
+                user_id: userId,
+                title: message.substring(0, 50)
+            });
+            await conversation.save();
+        } else {
+            conversation = await AIConversation.findOne({ _id: conversationId, user_id: userId });
+            if (!conversation) return sendError(res, 'Conversation not found', 404);
         }
 
-        // Save user message
-        const userMsgId = uuidv4();
-        await run(
-            'INSERT INTO ai_messages (id, conversation_id, role, content) VALUES (?, ?, ?, ?)',
-            [userMsgId, convId, 'user', message.trim()]
-        );
+        const userMsg = new AIMessage({
+            conversation_id: conversation._id,
+            role: 'user',
+            content: message.trim()
+        });
+        await userMsg.save();
 
-        // Get conversation history
-        const history = await query(
-            'SELECT role, content FROM ai_messages WHERE conversation_id = ? ORDER BY createdAt ASC LIMIT 20',
-            [convId]
-        );
+        const historyRows = await AIMessage.find({ conversation_id: conversation._id })
+            .sort({ createdAt: 1 })
+            .limit(20);
 
-        // Try Gemini first, fall back to local responses
+        const history = historyRows.map(m => ({ role: m.role, content: m.content }));
+
         let aiResponse = await getAIResponse(message.trim(), history);
         if (!aiResponse) {
-            console.log('[AI] Using local fallback response');
             aiResponse = getLocalResponse(message.trim());
         }
 
-        // Save AI response
-        const aiMsgId = uuidv4();
-        await run(
-            'INSERT INTO ai_messages (id, conversation_id, role, content) VALUES (?, ?, ?, ?)',
-            [aiMsgId, convId, 'assistant', aiResponse]
-        );
+        const aiMsg = new AIMessage({
+            conversation_id: conversation._id,
+            role: 'assistant',
+            content: aiResponse
+        });
+        await aiMsg.save();
 
         sendSuccess(res, {
-            conversationId: convId,
+            conversationId: conversation._id,
             message: aiResponse,
-            messageId: aiMsgId
+            messageId: aiMsg._id
         }, 'AI response generated');
     } catch (error) {
-        console.error('[AI CHAT] Error:', error.message);
         sendError(res, `AI chat error: ${error.message}`, 500);
     }
 };
@@ -159,16 +156,10 @@ export const getConversationHistory = async (req, res) => {
         const userId = req.user.userId;
         const { conversationId } = req.params;
 
-        const conv = await get(
-            'SELECT id FROM ai_conversations WHERE id = ? AND user_id = ?',
-            [conversationId, userId]
-        );
+        const conv = await AIConversation.findOne({ _id: conversationId, user_id: userId });
         if (!conv) return sendError(res, 'Conversation not found', 404);
 
-        const messages = await query(
-            'SELECT id, role, content, createdAt FROM ai_messages WHERE conversation_id = ? ORDER BY createdAt ASC',
-            [conversationId]
-        );
+        const messages = await AIMessage.find({ conversation_id: conversationId }).sort({ createdAt: 1 });
 
         sendSuccess(res, messages, 'Conversation history fetched');
     } catch (error) {
@@ -179,18 +170,18 @@ export const getConversationHistory = async (req, res) => {
 export const getUserConversations = async (req, res) => {
     try {
         const userId = req.user.userId;
+        const conversations = await AIConversation.find({ user_id: userId }).sort({ createdAt: -1 }).limit(20);
 
-        const conversations = await query(
-            `SELECT c.id, c.title, c.createdAt,
-        (SELECT content FROM ai_messages WHERE conversation_id = c.id ORDER BY createdAt DESC LIMIT 1) as lastMessage
-       FROM ai_conversations c
-       WHERE c.user_id = ?
-       ORDER BY c.createdAt DESC
-       LIMIT 20`,
-            [userId]
-        );
+        // Add last message for each conversation
+        const results = await Promise.all(conversations.map(async conv => {
+            const lastMsg = await AIMessage.findOne({ conversation_id: conv._id }).sort({ createdAt: -1 });
+            return {
+                ...conv.toObject(),
+                lastMessage: lastMsg ? lastMsg.content : ''
+            };
+        }));
 
-        sendSuccess(res, conversations, 'Conversations fetched');
+        sendSuccess(res, results, 'Conversations fetched');
     } catch (error) {
         sendError(res, 'Error fetching conversations', 500, error);
     }
@@ -201,17 +192,14 @@ export const deleteConversation = async (req, res) => {
         const userId = req.user.userId;
         const { conversationId } = req.params;
 
-        const conv = await get(
-            'SELECT id FROM ai_conversations WHERE id = ? AND user_id = ?',
-            [conversationId, userId]
-        );
+        const conv = await AIConversation.findOneAndDelete({ _id: conversationId, user_id: userId });
         if (!conv) return sendError(res, 'Conversation not found', 404);
 
-        await run('DELETE FROM ai_messages WHERE conversation_id = ?', [conversationId]);
-        await run('DELETE FROM ai_conversations WHERE id = ?', [conversationId]);
+        await AIMessage.deleteMany({ conversation_id: conversationId });
 
         sendSuccess(res, null, 'Conversation deleted');
     } catch (error) {
         sendError(res, 'Error deleting conversation', 500, error);
     }
 };
+

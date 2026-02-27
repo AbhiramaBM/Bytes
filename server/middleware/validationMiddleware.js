@@ -31,7 +31,6 @@ export const validateEmail = async (req, res, next) => {
     }
 
     // 3. MX Record check (only if not in local dev or explicitly requested)
-    // Note: This might be slow if DNS is laggy. We'll wrap in a timeout.
     try {
         const mxRecords = await new Promise((resolve, reject) => {
             const timeout = setTimeout(() => reject(new Error('DNS Timeout')), 2000);
@@ -70,7 +69,6 @@ export const validateEmail = async (req, res, next) => {
  */
 const normalizeTime = (timeStr) => {
     if (!timeStr) return null;
-    console.log('[DEBUG] Normalizing Time:', timeStr);
 
     // Remove all whitespace and make uppercase
     const clean = timeStr.trim().toUpperCase();
@@ -78,7 +76,6 @@ const normalizeTime = (timeStr) => {
     // Support various separators and optional seconds/AM/PM
     const match = clean.match(/^(\d{1,2})[:.](\d{2})(?::\d{2})?\s*(AM|PM)?$/);
     if (!match) {
-        console.warn('[DEBUG] No regex match for time string:', clean);
         return null;
     }
 
@@ -90,7 +87,6 @@ const normalizeTime = (timeStr) => {
     if (modifier === 'AM' && h === 12) h = 0;
 
     const result = `${h.toString().padStart(2, '0')}:${m}`;
-    console.log('[DEBUG] Normalized Result:', result);
     return result;
 };
 
@@ -99,7 +95,6 @@ const normalizeTime = (timeStr) => {
  */
 export const validateAppointment = (req, res, next) => {
     const { appointmentDate, appointmentTime } = req.body;
-    console.log('[DEBUG] validateAppointment Body:', { appointmentDate, appointmentTime });
 
     if (!appointmentDate || !appointmentTime) return next();
 

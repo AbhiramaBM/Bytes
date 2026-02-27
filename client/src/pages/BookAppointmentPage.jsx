@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Navbar from '../components/Navbar';
-import Sidebar from '../components/Sidebar';
-import Footer from '../components/Footer';
+import { AlertCircle, CheckCircle } from 'lucide-react';
 import { Card, Button, Input, Select, Textarea, LoadingSpinner } from '../components/UI';
 import apiClient from '../utils/apiClient';
 
 export const BookAppointmentPage = () => {
   const navigate = useNavigate();
   const [doctors, setDoctors] = useState([]);
+  const [clinics, setClinics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -23,15 +22,19 @@ export const BookAppointmentPage = () => {
   });
 
   useEffect(() => {
-    fetchDoctors();
+    fetchData();
   }, []);
 
-  const fetchDoctors = async () => {
+  const fetchData = async () => {
     try {
-      const response = await apiClient.get('/doctors');
-      setDoctors(response.data.data || []);
+      const [drRes, clRes] = await Promise.all([
+        apiClient.get('/doctors'),
+        apiClient.get('/clinics')
+      ]);
+      setDoctors(drRes.data.data || []);
+      setClinics(clRes.data.data || []);
     } catch (error) {
-      console.error('Error fetching doctors:', error);
+      console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
@@ -39,14 +42,12 @@ export const BookAppointmentPage = () => {
 
   const convertTo24Hour = (timeStr) => {
     if (!timeStr) return '';
-    console.log('[DEBUG] Frontend Normalizing Time:', timeStr);
 
     const clean = timeStr.trim().toUpperCase();
 
     // Robust Regex for H:M, HH:MM, optional seconds, optional AM/PM, supporting dots/colons
     const match = clean.match(/^(\d{1,2})[:.](\d{2})(?::\d{2})?\s*(AM|PM)?$/);
     if (!match) {
-      console.warn('[DEBUG] No frontend regex match for:', clean);
       return clean;
     }
 
@@ -60,7 +61,6 @@ export const BookAppointmentPage = () => {
     }
 
     const result = `${h.toString().padStart(2, '0')}:${minutes}`;
-    console.log('[DEBUG] Frontend Result:', result);
     return result;
   };
 
@@ -84,15 +84,12 @@ export const BookAppointmentPage = () => {
         appointmentTime: normalizedTime
       };
 
-      console.log('[DEBUG] Submitting Appointment Payload:', JSON.stringify(payload, null, 2));
-
       const response = await apiClient.post('/patients/appointments', payload);
       if (response.data.success) {
         setSuccessMsg('Appointment booked successfully!');
         setTimeout(() => navigate('/patient/appointments'), 1500);
       }
     } catch (error) {
-      console.error('[DEBUG] Booking Error Response:', error.response?.data);
       const backendMessage = error.response?.data?.message || 'Failed to book appointment';
       const backendError = error.response?.data?.error;
       const fullError = backendError ? `${backendMessage} (${backendError})` : backendMessage;
@@ -105,110 +102,138 @@ export const BookAppointmentPage = () => {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <>
-      <Navbar />
-      <div className="flex">
-        <Sidebar />
-        <main className="flex-1 md:ml-64 bg-gray-50 min-h-screen">
-          <div className="container mx-auto px-4 py-10 max-w-2xl">
-            <h1 className="text-4xl font-bold mb-10">Book an Appointment</h1>
-
-            {errorMsg && (
-              <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded mb-6" role="alert">
-                <strong className="font-bold">Error: </strong>
-                <span>{errorMsg}</span>
-              </div>
-            )}
-
-            {successMsg && (
-              <div className="bg-green-50 border border-green-400 text-green-700 px-4 py-3 rounded mb-6" role="alert">
-                <strong className="font-bold">Success: </strong>
-                <span>{successMsg}</span>
-              </div>
-            )}
-
-            <Card>
-              <form onSubmit={handleSubmit}>
-                <Select
-                  label="Select Doctor"
-                  name="doctorId"
-                  value={formData.doctorId}
-                  onChange={handleChange}
-                  options={doctors.map(d => ({
-                    value: d.id,
-                    label: `${d.fullName} - ${d.specialization}`
-                  }))}
-                  required
-                />
-
-                <Input
-                  label="Appointment Date"
-                  type="date"
-                  name="appointmentDate"
-                  value={formData.appointmentDate}
-                  onChange={handleChange}
-                  required
-                />
-
-                <div className="relative">
-                  <Input
-                    label="Appointment Time"
-                    type="time"
-                    name="appointmentTime"
-                    value={formData.appointmentTime}
-                    onChange={handleChange}
-                    required
-                  />
-                  <p className="text-xs text-gray-500 mt-[-12px] mb-4">
-                    Available in 30-minute slots from 09:00 to 18:00 (e.g., 09:00, 09:30)
-                  </p>
-                </div>
-
-                <Select
-                  label="Consultation Type"
-                  name="consultationType"
-                  value={formData.consultationType}
-                  onChange={handleChange}
-                  options={[
-                    { value: 'in-person', label: 'In-Person' },
-                    { value: 'online', label: 'Online' }
-                  ]}
-                />
-
-                <Textarea
-                  label="Reason for Appointment"
-                  name="reason"
-                  value={formData.reason}
-                  onChange={handleChange}
-                  placeholder="Describe your symptoms or reason"
-                  rows="4"
-                />
-
-                <div className="flex gap-4">
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={submitting}
-                    className="flex-1"
-                  >
-                    {submitting ? 'Booking...' : 'Book Appointment'}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => navigate(-1)}
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            </Card>
-          </div>
-        </main>
+    <div className="container mx-auto py-10 max-w-2xl px-4">
+      <div className="flex flex-col items-center mb-10 text-center">
+        <h1 className="text-4xl font-bold text-gray-800 font-display mb-2">Book an Appointment</h1>
+        <p className="text-gray-500">Schedule your consultation with our expert medical team</p>
       </div>
-      <Footer />
-    </>
+
+      {errorMsg && (
+        <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-4 rounded-lg mb-8 shadow-sm animate-shake" role="alert">
+          <div className="flex items-center">
+            <div className="py-1"><AlertCircle className="h-6 w-6 text-red-500 mr-4" /></div>
+            <div>
+              <p className="font-bold">Booking Error</p>
+              <p className="text-sm">{errorMsg}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {successMsg && (
+        <div className="bg-green-50 border-l-4 border-green-500 text-green-700 px-4 py-4 rounded-lg mb-8 shadow-sm animate-fadeIn" role="alert">
+          <div className="flex items-center">
+            <div className="py-1"><CheckCircle className="h-6 w-6 text-green-500 mr-4" /></div>
+            <div>
+              <p className="font-bold">Success!</p>
+              <p className="text-sm">{successMsg}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Card className="shadow-xl border-t-4 border-t-primary animate-fadeIn">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-4">
+            <Select
+              label="Select Doctor"
+              name="doctorId"
+              value={formData.doctorId}
+              onChange={handleChange}
+              options={doctors.map(d => ({
+                value: d._id, // Fixed: MongoDB uses _id
+                label: `${d.fullName} - ${d.specialization}`
+              }))}
+              required
+              className="bg-gray-50"
+            />
+
+            <Select
+              label="Select Clinic"
+              name="clinicId"
+              value={formData.clinicId}
+              onChange={handleChange}
+              options={clinics.map(c => ({
+                value: c._id,
+                label: `${c.name} - ${c.city}`
+              }))}
+              required
+              className="bg-gray-50"
+            />
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <Input
+                label="Appointment Date"
+                type="text"
+                name="appointmentDate"
+                placeholder="YYYY-MM-DD"
+                value={formData.appointmentDate}
+                onChange={handleChange}
+                required
+                className="bg-gray-50"
+              />
+
+              <Input
+                label="Appointment Time"
+                type="time"
+                name="appointmentTime"
+                value={formData.appointmentTime}
+                onChange={handleChange}
+                required
+                className="bg-gray-50"
+              />
+            </div>
+
+            <Select
+              label="Consultation Type"
+              name="consultationType"
+              value={formData.consultationType}
+              onChange={handleChange}
+              options={[
+                { value: 'in-person', label: 'In-Person' },
+                { value: 'online', label: 'Online' }
+              ]}
+              className="bg-gray-50"
+            />
+
+            <Textarea
+              label="Reason for Appointment"
+              name="reason"
+              value={formData.reason}
+              onChange={handleChange}
+              placeholder="Briefly describe your symptoms or reason for visit"
+              rows="4"
+              className="bg-gray-50"
+            />
+          </div>
+
+          <div className="flex gap-4 pt-6 border-t border-gray-100">
+            <Button
+              type="submit"
+              variant="success"
+              size="sm"
+              disabled={submitting}
+              className="flex-1 btn-premium shadow-lg shadow-green-100 font-bold"
+            >
+              {submitting ? 'Confirming...' : 'Confirm Appointment'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate(-1)}
+              className="flex-1 font-bold"
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      <p className="mt-8 text-center text-sm text-gray-400">
+        By booking, you agree to RuralCare Connect's terms of service and privacy policy.
+      </p>
+    </div>
   );
 };
 
