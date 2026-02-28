@@ -8,7 +8,8 @@ import {
   getDoctorsForAdmin,
   createDoctor,
   updateDoctorStatus,
-  deleteDoctor
+  deleteDoctor,
+  adminUnlockPrescriptionPayment
 } from '../controllers/adminController.js';
 import {
   getAllClinics,
@@ -17,13 +18,13 @@ import {
   deleteClinic
 } from '../controllers/clinicController.js';
 import { authenticate, authorize } from '../middleware/auth.js';
-import { validateEmail } from '../middleware/validationMiddleware.js';
+import { validateEmail, validateObjectIdParam } from '../middleware/validationMiddleware.js';
 
 const router = express.Router();
 
 router.get('/dashboard', authenticate, authorize(['admin']), getAdminDashboard);
 router.get('/users', authenticate, authorize(['admin']), getAllUsers);
-router.delete('/users/:userId', authenticate, authorize(['admin']), deleteUser);
+router.delete('/users/:userId', authenticate, authorize(['admin']), validateObjectIdParam('userId'), deleteUser);
 router.get('/analytics', authenticate, authorize(['admin']), getSystemAnalytics);
 
 // Clinic routes
@@ -35,8 +36,9 @@ router.delete('/clinics/:clinicId', authenticate, authorize(['admin']), deleteCl
 // Doctor management
 router.get('/doctors', authenticate, authorize(['admin']), getDoctorsForAdmin);
 router.post('/doctors', authenticate, authorize(['admin']), validateEmail, createDoctor);
-router.put('/doctors/:doctorId/status', authenticate, authorize(['admin']), updateDoctorStatus);
-router.delete('/doctors/:doctorId', authenticate, authorize(['admin']), deleteDoctor);
+router.put('/doctors/:doctorId/status', authenticate, authorize(['admin']), validateObjectIdParam('doctorId'), updateDoctorStatus);
+router.delete('/doctors/:doctorId', authenticate, authorize(['admin']), validateObjectIdParam('doctorId'), deleteDoctor);
+router.post('/prescriptions/:prescriptionId/unlock-payment', authenticate, authorize(['admin']), validateObjectIdParam('prescriptionId'), adminUnlockPrescriptionPayment);
 
 
 // Admin auth

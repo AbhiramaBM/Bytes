@@ -1,15 +1,21 @@
 import React, { useState } from 'react';
-import axios from 'axios';
-import { UserPlus, Mail, Lock, User, Phone, Stethoscope, Briefcase, DollarSign, Fingerprint, CheckCircle2, AlertCircle } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
+import { UserPlus, Mail, Lock, User, Phone, Stethoscope, Briefcase, DollarSign, Fingerprint, CheckCircle2, AlertCircle, MapPin } from 'lucide-react';
+import { Button, Input } from '../components/UI';
+import apiClient from '../utils/apiClient';
 
 const AddDoctor = () => {
-    const { token } = useAuth();
     const [formData, setFormData] = useState({
         email: '',
         password: '',
         fullName: '',
         phone: '',
+        address: '',
+        city: '',
+        state: '',
+        pincode: '',
+        latitude: '',
+        longitude: '',
+        googleMapsLink: '',
         specialization: '',
         experience: '',
         registrationNumber: '',
@@ -29,15 +35,20 @@ const AddDoctor = () => {
         setMessage({ type: '', text: '' });
 
         try {
-            await axios.post('http://localhost:5000/api/admin/doctors', formData, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await apiClient.post('/admin/doctors', formData);
             setMessage({ type: 'success', text: 'Doctor profile created successfully!' });
             setFormData({
                 email: '',
                 password: '',
                 fullName: '',
                 phone: '',
+                address: '',
+                city: '',
+                state: '',
+                pincode: '',
+                latitude: '',
+                longitude: '',
+                googleMapsLink: '',
                 specialization: '',
                 experience: '',
                 registrationNumber: '',
@@ -140,6 +151,35 @@ const AddDoctor = () => {
                                     />
                                 </div>
                             </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Full Address</label>
+                                <div className="relative">
+                                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                    <input
+                                        type="text"
+                                        name="address"
+                                        required
+                                        value={formData.address}
+                                        onChange={handleChange}
+                                        className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 transition"
+                                        placeholder="Clinic street address"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3">
+                                <input name="city" required value={formData.city} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 transition" placeholder="City" />
+                                <input name="state" required value={formData.state} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 transition" placeholder="State" />
+                                <input name="pincode" required value={formData.pincode} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 transition" placeholder="Pincode" />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <input type="number" step="any" name="latitude" value={formData.latitude} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 transition" placeholder="Latitude" />
+                                <input type="number" step="any" name="longitude" value={formData.longitude} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 transition" placeholder="Longitude" />
+                            </div>
+
+                            <input name="googleMapsLink" value={formData.googleMapsLink} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 transition" placeholder="Google Maps link (optional)" />
                         </div>
 
                         {/* Professional Information */}
@@ -211,10 +251,12 @@ const AddDoctor = () => {
                 </div>
 
                 <div className="bg-gray-50 px-8 py-4 flex justify-end">
-                    <button
+                    <Button
                         type="submit"
                         disabled={loading}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-bold transition flex items-center gap-2 disabled:bg-blue-400 shadow-lg shadow-blue-200"
+                        variant="primary"
+                        size="sm"
+                        className="font-bold flex items-center gap-2 btn-premium shadow-lg shadow-blue-200"
                     >
                         {loading ? (
                             <>
@@ -223,11 +265,11 @@ const AddDoctor = () => {
                             </>
                         ) : (
                             <>
-                                <UserPlus size={20} />
+                                <UserPlus size={18} />
                                 Create Doctor Profile
                             </>
                         )}
-                    </button>
+                    </Button>
                 </div>
             </form>
         </div>

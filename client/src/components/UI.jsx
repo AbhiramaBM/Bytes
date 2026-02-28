@@ -15,15 +15,19 @@ export const Card = ({ children, className = '' }) => (
 export const Button = ({ children, variant = 'primary', size = 'md', ...props }) => {
   const baseClasses = 'rounded-lg font-semibold transition duration-200';
   const variants = {
-    primary: 'bg-blue-600 hover:bg-blue-700 text-white',
-    secondary: 'bg-gray-200 hover:bg-gray-300 text-gray-800',
-    danger: 'bg-red-600 hover:bg-red-700 text-white',
-    success: 'bg-green-600 hover:bg-green-700 text-white',
+    primary: 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm',
+    secondary: 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200',
+    danger: 'bg-red-600 hover:bg-red-700 text-white shadow-sm',
+    success: 'bg-green-600 hover:bg-green-700 text-white shadow-sm',
+    warning: 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm',
+    indigo: 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm',
+    outline: 'bg-transparent border-2 border-primary text-primary hover:bg-primary/5',
+    ghost: 'bg-transparent hover:bg-gray-100 text-gray-600',
   };
   const sizes = {
-    sm: 'px-3 py-1 text-sm',
-    md: 'px-4 py-2',
-    lg: 'px-6 py-3 text-lg',
+    sm: 'px-3 py-1.5 text-xs',
+    md: 'px-4 py-2 text-sm',
+    lg: 'px-6 py-3 text-base',
   };
 
   return (
@@ -37,9 +41,8 @@ export const Input = ({ label, error, ...props }) => (
   <div className="mb-4">
     {label && <label className="block text-gray-700 font-semibold mb-2">{label}</label>}
     <input
-      className={`w-full px-4 py-2 border rounded-lg focus:outline-none transition ${
-        error ? 'border-red-500' : 'border-gray-300 focus:border-blue-600'
-      }`}
+      className={`w-full px-4 py-2 border rounded-lg focus:outline-none transition ${error ? 'border-red-500' : 'border-gray-300 focus:border-blue-600'
+        }`}
       {...props}
     />
     {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
@@ -50,9 +53,8 @@ export const Select = ({ label, options, error, ...props }) => (
   <div className="mb-4">
     {label && <label className="block text-gray-700 font-semibold mb-2">{label}</label>}
     <select
-      className={`w-full px-4 py-2 border rounded-lg focus:outline-none transition ${
-        error ? 'border-red-500' : 'border-gray-300 focus:border-blue-600'
-      }`}
+      className={`w-full px-4 py-2 border rounded-lg focus:outline-none transition ${error ? 'border-red-500' : 'border-gray-300 focus:border-blue-600'
+        }`}
       {...props}
     >
       <option value="">Select an option</option>
@@ -70,9 +72,8 @@ export const Textarea = ({ label, error, ...props }) => (
   <div className="mb-4">
     {label && <label className="block text-gray-700 font-semibold mb-2">{label}</label>}
     <textarea
-      className={`w-full px-4 py-2 border rounded-lg focus:outline-none transition ${
-        error ? 'border-red-500' : 'border-gray-300 focus:border-blue-600'
-      }`}
+      className={`w-full px-4 py-2 border rounded-lg focus:outline-none transition ${error ? 'border-red-500' : 'border-gray-300 focus:border-blue-600'
+        }`}
       {...props}
     ></textarea>
     {error && <p className="text-red-500 text-sm mt-1">{error}</p>}

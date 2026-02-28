@@ -90,8 +90,9 @@ export const VerifyOTPPage = () => {
                         <Button
                             type="submit"
                             disabled={loading || success}
-                            className="w-full mt-4"
+                            className="w-full mt-4 font-bold shadow-lg shadow-blue-100"
                             variant="primary"
+                            size="sm"
                         >
                             {loading ? 'Verifying...' : 'Verify Email'}
                         </Button>

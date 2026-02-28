@@ -1,4 +1,5 @@
 import dns from 'dns';
+import mongoose from 'mongoose';
 import { sendError } from '../utils/responseHandler.js';
 
 // Regex for basic format validation
@@ -136,5 +137,13 @@ export const validateAppointment = (req, res, next) => {
         return sendError(res, 'Please select a valid 30-minute slot between 09:00 and 18:00.', 400);
     }
 
+    next();
+};
+
+export const validateObjectIdParam = (paramName) => (req, res, next) => {
+    const value = req.params[paramName];
+    if (!mongoose.Types.ObjectId.isValid(value)) {
+        return sendError(res, `Invalid ${paramName}`, 400);
+    }
     next();
 };

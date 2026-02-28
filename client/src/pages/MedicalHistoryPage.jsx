@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, FileText, Pill, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react';
-import { Card, LoadingSpinner } from '../components/UI';
+import { Card, LoadingSpinner, Button } from '../components/UI';
 import apiClient from '../utils/apiClient';
 
 const MedicalHistoryPage = () => {
@@ -36,8 +36,11 @@ const MedicalHistoryPage = () => {
 
             {history.length > 0 ? (
                 <div className="space-y-6">
-                    {history.map((entry, idx) => (
-                        <Card key={entry.prescriptionId || idx} className="hover:shadow-md transition-shadow">
+                    {history.map((entry, idx) => {
+                        const rowId = entry.prescriptionId || entry._id || idx;
+
+                        return (
+                        <Card key={rowId} className="hover:shadow-md transition-shadow">
                             {/* Header */}
                             <div className="flex justify-between items-start mb-6">
                                 <div className="flex items-start gap-4">
@@ -55,12 +58,14 @@ const MedicalHistoryPage = () => {
                                         </div>
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() => toggleExpand(entry.prescriptionId)}
-                                    className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors"
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => toggleExpand(rowId)}
+                                    className="text-gray-400 hover:text-gray-600 rounded-full"
                                 >
-                                    {expandedId === entry.prescriptionId ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
-                                </button>
+                                    {expandedId === rowId ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                </Button>
                             </div>
 
                             {/* Main Content Grid */}
@@ -91,7 +96,7 @@ const MedicalHistoryPage = () => {
                             )}
 
                             {/* Expanded: Medicines */}
-                            {expandedId === entry.prescriptionId && entry.medicines && entry.medicines.length > 0 && (
+                            {expandedId === rowId && entry.medicines && entry.medicines.length > 0 && (
                                 <div className="border rounded-xl overflow-hidden mt-6 bg-white animate-fadeIn">
                                     <div className="bg-gray-50 px-4 py-3 border-b">
                                         <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
@@ -121,7 +126,8 @@ const MedicalHistoryPage = () => {
                                 </div>
                             )}
                         </Card>
-                    ))}
+                        );
+                    })}
                 </div>
             ) : (
                 <Card className="text-center py-20 bg-gray-50/30 border-dashed border-2">

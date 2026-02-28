@@ -28,10 +28,10 @@ import AdminAnalytics from './pages/AdminAnalytics';
 import AdminClinics from './pages/AdminClinics';
 import AdminAddDoctor from './pages/AdminAddDoctor';
 import AdminDoctors from './pages/AdminDoctors';
-import AdminPatients from './pages/AdminPatients';
-import AdminAppointments from './pages/AdminAppointments';
 import DoctorPrescription from './pages/DoctorPrescription';
 import MedicalHistoryPage from './pages/MedicalHistoryPage';
+import SymptomCheckerPage from './pages/SymptomCheckerPage';
+import DoctorProfilePage from './pages/DoctorProfilePage';
 
 function App() {
   const { isAuthenticated } = useAuth();
@@ -54,6 +54,7 @@ function App() {
           <Route path="/patient/ai-chat" element={<ProtectedRoute requiredRole="patient"><ChatPage /></ProtectedRoute>} />
           <Route path="/patient/profile" element={<ProtectedRoute requiredRole="patient"><ProfilePage /></ProtectedRoute>} />
           <Route path="/patient/medical-history" element={<ProtectedRoute requiredRole="patient"><MedicalHistoryPage /></ProtectedRoute>} />
+          <Route path="/patient/symptom-checker" element={<ProtectedRoute requiredRole="patient"><SymptomCheckerPage /></ProtectedRoute>} />
 
           {/* Doctor Routes */}
           <Route path="/doctor/dashboard" element={<ProtectedRoute requiredRole="doctor"><DoctorDashboard /></ProtectedRoute>} />
@@ -67,13 +68,12 @@ function App() {
           <Route path="/admin/users" element={<ProtectedRoute requiredRole="admin"><AdminUsers /></ProtectedRoute>} />
           <Route path="/admin/analytics" element={<ProtectedRoute requiredRole="admin"><AdminAnalytics /></ProtectedRoute>} />
           <Route path="/admin/add-doctor" element={<ProtectedRoute requiredRole="admin"><AdminAddDoctor /></ProtectedRoute>} />
-          <Route path="/admin/doctors" element={<ProtectedRoute requiredRole="admin"><AdminDoctors /></ProtectedRoute>} />
-          <Route path="/admin/patients" element={<ProtectedRoute requiredRole="admin"><AdminPatients /></ProtectedRoute>} />
-          <Route path="/admin/appointments" element={<ProtectedRoute requiredRole="admin"><AdminAppointments /></ProtectedRoute>} />
+<Route path="/admin/doctors" element={<ProtectedRoute requiredRole="admin"><AdminDoctors /></ProtectedRoute>} />
           <Route path="/admin/clinics" element={<ProtectedRoute requiredRole="admin"><AdminClinics /></ProtectedRoute>} />
 
           {/* Public Routes */}
           <Route path="/doctors" element={<ViewDoctorsPage />} />
+          <Route path="/doctor/:id" element={<DoctorProfilePage />} />
           <Route path="/clinics" element={<ViewClinicsPage />} />
 
           <Route path="*" element={<Navigate to="/" />} />

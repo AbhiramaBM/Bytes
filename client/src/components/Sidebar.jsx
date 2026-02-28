@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Pill, Heart, MessageSquare,
   LogOut, User, AlertCircle, Users, BarChart3,
-  UserPlus, ClipboardList, ChevronLeft, ChevronRight
+  UserPlus, ClipboardList, ChevronLeft, ChevronRight, Building2
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
@@ -29,8 +29,7 @@ export const Sidebar = ({ isOpen, setIsOpen }) => {
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard' },
     { icon: UserPlus, label: 'Add Doctor', path: '/admin/add-doctor' },
     { icon: Users, label: 'Doctors', path: '/admin/doctors' },
-    { icon: User, label: 'Patients', path: '/admin/patients' },
-    { icon: Calendar, label: 'Appointments', path: '/admin/appointments' },
+    { icon: Building2, label: 'Clinics', path: '/admin/clinics' },
     { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
   ] : [];
 

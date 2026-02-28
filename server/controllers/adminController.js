@@ -1,10 +1,14 @@
 import bcryptjs from 'bcryptjs';
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 import Clinic from '../models/Clinic.js';
 import Appointment from '../models/Appointment.js';
+import Prescription from '../models/Prescription.js';
+import Payment from '../models/Payment.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { generateToken } from '../utils/tokenUtils.js';
 import { logAction } from '../utils/auditLogger.js';
+import { createAutoRemindersForPrescription } from '../utils/medicineReminderUtils.js';
 
 export const getAdminDashboard = async (req, res) => {
   try {
@@ -128,8 +132,36 @@ export const getDoctorsForAdmin = async (req, res) => {
 
 export const createDoctor = async (req, res) => {
   try {
-    const { email, password, fullName, phone, specialization, experience, registrationNumber, consultationFee } = req.body;
-    if (!email || !password || !fullName) return sendError(res, 'Missing required fields', 400);
+    const {
+      email,
+      password,
+      fullName,
+      phone,
+      address,
+      city,
+      state,
+      pincode,
+      latitude,
+      longitude,
+      googleMapsLink,
+      specialization,
+      experience,
+      experienceYears,
+      registrationNumber,
+      consultationFee,
+      availableSlots = [],
+      languages = [],
+      education,
+      hospitalName,
+      profileImage
+    } = req.body;
+
+    if (!email || !password || !fullName || !address || !city || !state || !pincode) {
+      return sendError(res, 'Missing required fields (email, password, fullName, address, city, state, pincode)', 400);
+    }
+    if ((latitude !== undefined && Number.isNaN(Number(latitude))) || (longitude !== undefined && Number.isNaN(Number(longitude)))) {
+      return sendError(res, 'Invalid latitude or longitude', 400);
+    }
 
     const emailClean = email.toLowerCase().trim();
     const existing = await User.findOne({ email: emailClean });
@@ -143,10 +175,23 @@ export const createDoctor = async (req, res) => {
       fullName: fullName.trim(),
       phone,
       role: 'doctor',
+      address,
+      city,
+      state,
+      pincode,
+      latitude: latitude !== undefined && latitude !== '' ? Number(latitude) : undefined,
+      longitude: longitude !== undefined && longitude !== '' ? Number(longitude) : undefined,
+      googleMapsLink,
       specialization,
       experience,
+      experienceYears,
       registrationNumber,
       consultationFee,
+      availableSlots,
+      languages,
+      education,
+      hospitalName,
+      profileImage,
       isVerified: true // Admins create verified accounts
     });
 
@@ -240,6 +285,90 @@ export const getSystemAnalytics = async (req, res) => {
     sendSuccess(res, { totalLogins: 0, totalBookings: 0, totalPrescriptions: 0 }, 'Analytics fetched successfully');
   } catch (error) {
     sendError(res, 'Error fetching analytics', 500, error);
+  }
+};
+
+export const adminUnlockPrescriptionPayment = async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    const adminId = req.user?.userId;
+    const { prescriptionId } = req.params;
+    const { reason = 'manual admin unlock' } = req.body || {};
+
+    if (!mongoose.Types.ObjectId.isValid(prescriptionId)) {
+      return sendError(res, 'Invalid prescriptionId', 400);
+    }
+
+    let payload = null;
+
+    await session.withTransaction(async () => {
+      const prescription = await Prescription.findById(prescriptionId).session(session);
+      if (!prescription) throw new Error('PRESCRIPTION_NOT_FOUND');
+
+      if (prescription.status !== 'paid') {
+        prescription.status = 'paid';
+        await prescription.save({ session });
+      }
+
+      const appointment = await Appointment.findById(prescription.appointmentId).session(session);
+      if (appointment && appointment.status !== 'completed') {
+        appointment.status = 'completed';
+        await appointment.save({ session });
+      }
+
+      let payment = await Payment.findOne({
+        prescriptionId: prescription._id,
+        patientId: prescription.patientId,
+        status: 'success'
+      }).session(session);
+
+      if (!payment) {
+        payment = await Payment.create([{
+          prescriptionId: prescription._id,
+          patientId: prescription.patientId,
+          doctorId: prescription.doctorId,
+          appointmentId: prescription.appointmentId,
+          amount: prescription.totalAmount || 0,
+          currency: prescription.currency || 'INR',
+          status: 'success',
+          gatewayPaymentId: `ADMIN-${Date.now()}-${prescription._id.toString().slice(-6)}`,
+          verifiedAt: new Date()
+        }], { session });
+        payment = payment[0];
+      }
+
+      const reminderCount = await createAutoRemindersForPrescription({
+        patientId: prescription.patientId,
+        prescriptionId: prescription._id,
+        appointmentId: prescription.appointmentId,
+        medicines: prescription.medicines || [],
+        session
+      });
+
+      await logAction(adminId, 'ADMIN_UNLOCK_PRESCRIPTION_PAYMENT', {
+        prescriptionId: prescription._id,
+        appointmentId: prescription.appointmentId,
+        paymentId: payment._id,
+        reason,
+        reminderCount
+      });
+
+      payload = {
+        prescriptionId: prescription._id,
+        paymentId: payment._id,
+        appointmentId: prescription.appointmentId,
+        reminderCount
+      };
+    });
+
+    sendSuccess(res, payload, 'Prescription payment unlocked by admin');
+  } catch (error) {
+    if (error.message === 'PRESCRIPTION_NOT_FOUND') {
+      return sendError(res, 'Prescription not found', 404);
+    }
+    sendError(res, 'Failed to unlock prescription payment', 500, error);
+  } finally {
+    await session.endSession();
   }
 };
 

@@ -112,10 +112,11 @@ export const RegisterPage = () => {
           <Button
             type="submit"
             disabled={loading}
-            className="w-full btn-premium py-4"
+            className="w-full btn-premium shadow-lg shadow-blue-100 font-bold"
             variant="primary"
+            size="sm"
           >
-            {loading ? 'Creating Account...' : 'Register Now'}
+            {loading ? 'Creating Account...' : 'Continue Registration'}
           </Button>
         </form>
 

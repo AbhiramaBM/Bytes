@@ -100,7 +100,9 @@ const AdminClinics = () => {
           </div>
           <Button
             onClick={() => setShowForm(!showForm)}
-            className="bg-primary hover:bg-primary-dark text-white"
+            size="sm"
+            variant="primary"
+            className="shadow-lg shadow-blue-100 btn-premium font-bold"
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Clinic
@@ -172,19 +174,23 @@ const AdminClinics = () => {
                 />
               </div>
               <div className="flex gap-3">
-                <button
+                <Button
                   type="submit"
-                  className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition"
+                  size="sm"
+                  variant="success"
+                  className="flex-1 font-bold btn-premium shadow-lg shadow-green-100"
                 >
                   Add Clinic
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition"
+                  variant="secondary"
+                  size="sm"
+                  className="flex-1 font-bold bg-white border-gray-200"
                 >
                   Cancel
-                </button>
+                </Button>
               </div>
             </form>
           </Card>
@@ -234,13 +240,15 @@ const AdminClinics = () => {
                       )}
                     </div>
                   </div>
-                  <button
+                  <Button
                     onClick={() => handleDeleteClinic(clinic._id)}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                    variant="danger"
+                    size="sm"
+                    className="p-2 border-red-200 text-red-600 hover:bg-red-50"
                     title="Delete clinic"
                   >
                     <Trash2 className="w-5 h-5" />
-                  </button>
+                  </Button>
                 </div>
               </Card>
             ))}

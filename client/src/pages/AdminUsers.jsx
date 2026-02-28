@@ -156,10 +156,10 @@ const AdminUsers = () => {
                       {new Date(user.createdAt).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 flex gap-2">
-                      <Button size="sm" variant="secondary">
+                      <Button size="sm" variant="secondary" title="Edit User" className="bg-white border-gray-200">
                         <Edit size={16} />
                       </Button>
-                      <Button size="sm" variant="danger" onClick={() => handleDeleteUser(user._id)}>
+                      <Button size="sm" variant="danger" onClick={() => handleDeleteUser(user._id)} title="Deactivate User" className="border-red-200 text-red-600 hover:bg-red-50">
                         <Trash2 size={16} />
                       </Button>
                     </td>

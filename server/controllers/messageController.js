@@ -1,5 +1,7 @@
 import User from '../models/User.js';
 import Message from '../models/Message.js';
+import Appointment from '../models/Appointment.js';
+import mongoose from 'mongoose';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 
 export const sendMessage = async (req, res) => {
@@ -9,6 +11,37 @@ export const sendMessage = async (req, res) => {
 
     if (!receiverId || !message) {
       return sendError(res, 'ReceiverID and message are required', 400);
+    }
+    if (!mongoose.Types.ObjectId.isValid(receiverId)) {
+      return sendError(res, 'Invalid receiverId', 400);
+    }
+
+    const [sender, receiver] = await Promise.all([
+      User.findById(senderId).select('role'),
+      User.findById(receiverId).select('role')
+    ]);
+
+    if (!sender || !receiver) {
+      return sendError(res, 'Sender or receiver not found', 404);
+    }
+
+    const isDoctorPatientPair =
+      (sender.role === 'doctor' && receiver.role === 'patient') ||
+      (sender.role === 'patient' && receiver.role === 'doctor');
+
+    if (!isDoctorPatientPair) {
+      return sendError(res, 'Chat is allowed only between doctor and patient', 403);
+    }
+
+    const assignmentExists = await Appointment.exists({
+      $or: [
+        { doctorId: senderId, patientId: receiverId },
+        { doctorId: receiverId, patientId: senderId }
+      ]
+    });
+
+    if (!assignmentExists) {
+      return sendError(res, 'Chat is allowed only for assigned doctor-patient pairs', 403);
     }
 
     const newMessage = new Message({
@@ -29,6 +62,9 @@ export const getMessages = async (req, res) => {
   try {
     const userId = req.user.userId;
     const { conversationId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+      return sendError(res, 'Invalid conversation user id', 400);
+    }
 
     const messages = await Message.find({
       $or: [
@@ -109,7 +145,9 @@ export const getConversations = async (req, res) => {
       },
       {
         $project: {
+          _id: 0,
           conversationUserId: '$_id',
+          id: '$_id',
           fullName: '$userDetails.fullName',
           role: '$userDetails.role',
           lastMessageTime: 1,

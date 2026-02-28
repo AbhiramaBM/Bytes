@@ -132,4 +132,23 @@ export const updateProfile = async (req, res) => {
   }
 };
 
+export const uploadProfileImage = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    if (!req.file) return sendError(res, 'No image file uploaded', 400);
+
+    const imagePath = `/uploads/${req.file.filename}`;
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { profileImage: imagePath },
+      { new: true, runValidators: true }
+    ).select('-password -otp -otpExpiry -otpAttempts');
+
+    if (!updatedUser) return sendError(res, 'User not found', 404);
+    sendSuccess(res, { profileImage: imagePath, user: updatedUser }, 'Profile image uploaded successfully');
+  } catch (error) {
+    sendError(res, 'Error uploading profile image', 500, error);
+  }
+};
+
 

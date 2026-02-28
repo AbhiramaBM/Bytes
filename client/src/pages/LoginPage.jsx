@@ -95,8 +95,9 @@ export const LoginPage = () => {
           <Button
             type="submit"
             disabled={loading}
-            className="w-full btn-premium py-4"
+            className="w-full btn-premium shadow-lg shadow-blue-100 font-bold"
             variant="primary"
+            size="sm"
           >
             {loading ? 'Signing In...' : 'Sign In'}
           </Button>

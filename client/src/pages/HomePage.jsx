@@ -1,8 +1,9 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Heart, Clock, Users, Award, Phone, Mail, MapPin, ArrowRight, Stethoscope, AlertCircle, FileText, MessageCircle } from 'lucide-react';
+import { Button } from '../components/UI';
 
 export const HomePage = () => {
+  const navigate = useNavigate();
   return (
     <>
       {/* Hero Section */}
@@ -12,12 +13,13 @@ export const HomePage = () => {
             <h1 className="text-5xl font-bold mb-6">Quality Healthcare, Anytime, Anywhere</h1>
             <p className="text-xl mb-8 text-gray-100">RuralCare Connect brings world-class healthcare to underserved communities. Book appointments, consult doctors, and manage your health digitally.</p>
             <div className="flex gap-4">
-              <Link to="/register" className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition">
-                Get Started
-              </Link>
-              <Link to="/doctors" className="border-2 border-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition">
+              {/* Replaced Link components with Buttons using onClick for navigation */}
+              <Button size="sm" onClick={() => navigate('/register')} className="px-8 btn-premium font-bold shadow-xl shadow-blue-200" variant="primary">
+                Join RuralCare Connect
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => navigate('/doctors')} className="px-8 border-blue-200 text-blue-600 hover:bg-white/50 backdrop-blur-sm font-bold bg-white/30 transition-all duration-300">
                 Find Doctors
-              </Link>
+              </Button>
             </div>
           </div>
           <div className="flex justify-center">
@@ -77,8 +79,10 @@ export const HomePage = () => {
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-4xl font-bold mb-6">Ready to Improve Your Health?</h2>
           <p className="text-xl mb-8 max-w-2xl mx-auto">Join thousands of users who are already using RuralCare Connect for better healthcare access.</p>
-          <Link to="/register" className="inline-block bg-white text-blue-600 px-10 py-4 rounded-lg font-bold hover:bg-gray-100 transition flex items-center gap-2 justify-center mx-auto">
-            Start Today <ArrowRight size={20} />
+          <Link to="/register" className="inline-block">
+            <Button variant="secondary" size="sm" className="bg-white text-blue-600 px-10 border-none font-bold shadow-2xl shadow-blue-900/40 flex items-center gap-2 transform transition-transform hover:scale-105">
+              Start Today <ArrowRight size={20} />
+            </Button>
           </Link>
         </div>
       </section>

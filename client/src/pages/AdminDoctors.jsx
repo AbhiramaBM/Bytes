@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Search, UserCheck, UserX, UserMinus, Mail, Phone, Stethoscope, Filter, RefreshCw, AlertCircle } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
+import { Button } from '../components/UI';
+import apiClient from '../utils/apiClient';
 
 const AdminDoctors = () => {
-    const { token } = useAuth();
     const [doctors, setDoctors] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -14,8 +13,7 @@ const AdminDoctors = () => {
     const fetchDoctors = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`http://localhost:5000/api/admin/doctors`, {
-                headers: { Authorization: `Bearer ${token}` },
+            const response = await apiClient.get(`/admin/doctors`, {
                 params: { search, isActive: isActiveFilter || undefined }
             });
             setDoctors(response.data.data);
@@ -32,11 +30,10 @@ const AdminDoctors = () => {
 
     const toggleStatus = async (doctorId, currentStatus) => {
         try {
-            await axios.put(`http://localhost:5000/api/admin/doctors/${doctorId}/status`,
-                { isActive: !currentStatus },
-                { headers: { Authorization: `Bearer ${token}` } }
+            await apiClient.put(`/admin/doctors/${doctorId}/status`,
+                { isActive: !currentStatus }
             );
-            setDoctors(doctors.map(d => d.doctorId === doctorId ? { ...d, isActive: !currentStatus ? 1 : 0 } : d));
+            setDoctors(doctors.map(d => d._id === doctorId ? { ...d, isActive: !currentStatus ? 1 : 0 } : d));
         } catch (err) {
             alert('Failed to update status');
         }
@@ -45,10 +42,8 @@ const AdminDoctors = () => {
     const deactivateDoctor = async (doctorId) => {
         if (!window.confirm('Are you sure you want to deactivate this doctor? This will soft-delete their user account.')) return;
         try {
-            await axios.delete(`http://localhost:5000/api/admin/doctors/${doctorId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setDoctors(doctors.filter(d => d.doctorId !== doctorId));
+            await apiClient.delete(`/admin/doctors/${doctorId}`);
+            setDoctors(doctors.filter(d => d._id !== doctorId));
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to deactivate doctor');
         }
@@ -61,12 +56,14 @@ const AdminDoctors = () => {
                     <h1 className="text-3xl font-bold text-gray-800">Doctor Management</h1>
                     <p className="text-gray-600">Overview of all healthcare providers in the system.</p>
                 </div>
-                <button
+                <Button
                     onClick={fetchDoctors}
+                    variant="ghost"
+                    size="sm"
                     className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition"
                 >
                     <RefreshCw size={24} />
-                </button>
+                </Button>
             </div>
 
             {/* Filters */}
@@ -107,12 +104,12 @@ const AdminDoctors = () => {
             ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     {doctors.map((doc) => (
-                        <div key={doc.doctorId} className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition overflow-hidden">
+                        <div key={doc._id} className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition overflow-hidden">
                             <div className="p-6">
                                 <div className="flex justify-between items-start mb-4">
                                     <div className="flex items-center gap-4">
                                         <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-2xl">
-                                            {doc.fullName.charAt(0)}
+                                            {doc.fullName?.charAt(0)}
                                         </div>
                                         <div>
                                             <h3 className="text-xl font-bold text-gray-800">{doc.fullName}</h3>
@@ -143,23 +140,24 @@ const AdminDoctors = () => {
                                 </div>
 
                                 <div className="flex gap-2 border-t pt-4">
-                                    <button
-                                        onClick={() => toggleStatus(doc.doctorId, !!doc.isActive)}
-                                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition ${doc.isActive
-                                            ? 'bg-orange-50 text-orange-600 hover:bg-orange-100'
-                                            : 'bg-green-50 text-green-600 hover:bg-green-100'
-                                            }`}
+                                    <Button
+                                        size="sm"
+                                        variant={doc.isActive ? 'secondary' : 'success'}
+                                        onClick={() => toggleStatus(doc._id, !!doc.isActive)}
+                                        className={`flex-1 font-bold ${doc.isActive ? 'bg-white border-gray-200' : 'btn-premium shadow-lg shadow-green-100'}`}
                                     >
                                         {doc.isActive ? <UserX size={16} /> : <UserCheck size={16} />}
                                         {doc.isActive ? 'Deactivate' : 'Activate'}
-                                    </button>
-                                    <button
-                                        onClick={() => deactivateDoctor(doc.doctorId)}
-                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 text-sm font-bold transition"
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="danger"
+                                        onClick={() => deactivateDoctor(doc._id)}
+                                        className="flex-1 font-bold border-red-200 text-red-600 hover:bg-red-50"
                                     >
                                         <UserMinus size={16} />
                                         Delete Profile
-                                    </button>
+                                    </Button>
                                 </div>
                             </div>
                         </div>

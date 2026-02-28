@@ -82,7 +82,7 @@ const DoctorDescription = () => {
               <span className="font-semibold">4.8/5</span>
             </div>
             {!isEditing && (
-              <Button onClick={() => setIsEditing(true)} className="w-full">
+              <Button variant="primary" size="sm" onClick={() => setIsEditing(true)} className="w-full font-bold btn-premium shadow-lg shadow-blue-100">
                 Edit Profile
               </Button>
             )}
@@ -158,10 +158,10 @@ const DoctorDescription = () => {
                   onChange={handleInputChange}
                 />
                 <div className="flex gap-2">
-                  <Button variant="primary" onClick={handleSave}>
+                  <Button variant="success" size="sm" onClick={handleSave} className="flex-1 font-bold btn-premium shadow-lg shadow-green-100">
                     Save Changes
                   </Button>
-                  <Button variant="secondary" onClick={() => setIsEditing(false)}>
+                  <Button variant="secondary" size="sm" onClick={() => setIsEditing(false)} className="flex-1 font-bold bg-white border-gray-200">
                     Cancel
                   </Button>
                 </div>

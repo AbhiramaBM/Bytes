@@ -154,7 +154,7 @@ export const AdminDashboard = () => {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <Button type="submit" variant="primary">Search</Button>
+            <Button type="submit" variant="primary" size="sm" className="px-6 btn-premium font-bold shadow-lg shadow-blue-100">Search</Button>
           </form>
 
           <div className="flex items-center gap-2 w-full md:w-auto">
@@ -188,7 +188,7 @@ export const AdminDashboard = () => {
               </thead>
               <tbody>
                 {users.map((user) => (
-                  <tr key={user.id} className="border-b hover:bg-gray-50 transition">
+                  <tr key={user._id} className="border-b hover:bg-gray-50 transition">
                     <td className="px-4 py-3">
                       <p className="font-bold text-gray-900">{user.fullName}</p>
                       <p className="text-xs text-gray-500">{user.email}</p>
@@ -206,13 +206,15 @@ export const AdminDashboard = () => {
                       {new Date(user.createdAt).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => handleDeleteUser(user.id)}
-                        className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition"
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => handleDeleteUser(user._id)}
                         title="Deactivate User"
+                        className="p-2 border-red-200 text-red-600 hover:bg-red-50"
                       >
                         <Trash2 size={18} />
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -250,7 +252,7 @@ export const AdminDashboard = () => {
           <div className="text-center py-20 text-gray-500">
             <Users size={64} className="mx-auto mb-4 opacity-20" />
             <p className="text-xl font-medium">No users found matching your criteria</p>
-            <Button variant="outline" className="mt-4" onClick={() => { setSearch(''); setRoleFilter(''); setPage(1); }}>
+            <Button variant="outline" size="sm" className="mt-4 font-bold border-gray-200" onClick={() => { setSearch(''); setRoleFilter(''); setPage(1); }}>
               Clear All Filters
             </Button>
           </div>

@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, LogOut, User as UserIcon, Bell } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { Button } from '../components/UI';
 
 export const Navbar = ({ toggleSidebar }) => {
   const { isAuthenticated, user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   const handleLogout = () => {
     logout();
@@ -51,8 +53,8 @@ export const Navbar = ({ toggleSidebar }) => {
                 key={link.path}
                 to={link.path}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${isActive(link.path)
-                    ? 'text-blue-600 bg-blue-50'
-                    : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+                  ? 'text-blue-600 bg-blue-50'
+                  : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
                   }`}
               >
                 {link.name}
@@ -89,15 +91,12 @@ export const Navbar = ({ toggleSidebar }) => {
               </div>
             ) : (
               <div className="flex items-center gap-3">
-                <Link to="/login" className="text-gray-600 hover:text-blue-600 font-medium px-4 py-2">
-                  Login
-                </Link>
-                <Link
-                  to="/register"
-                  className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200 transition-all transform hover:-translate-y-0.5"
-                >
-                  Join Now
-                </Link>
+                <Button variant="outline" size="sm" onClick={() => navigate('/login')} className="hidden md:flex border-blue-200 text-blue-600 hover:bg-blue-50 font-bold px-4">
+                  Sign In
+                </Button>
+                <Button variant="primary" size="sm" onClick={() => navigate('/register')} className="hidden md:flex btn-premium font-bold shadow-lg shadow-blue-100 px-4">
+                  Register
+                </Button>
               </div>
             )}
           </div>
@@ -120,8 +119,8 @@ export const Navbar = ({ toggleSidebar }) => {
                 to={link.path}
                 onClick={() => setMenuOpen(false)}
                 className={`block px-4 py-3 rounded-xl text-base font-medium ${isActive(link.path)
-                    ? 'text-blue-600 bg-blue-50'
-                    : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+                  ? 'text-blue-600 bg-blue-50'
+                  : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
                   }`}
               >
                 {link.name}
@@ -147,11 +146,13 @@ export const Navbar = ({ toggleSidebar }) => {
                 </>
               ) : (
                 <div className="flex flex-col gap-2 mt-2">
-                  <Link to="/login" onClick={() => setMenuOpen(false)} className="w-full text-center py-3 text-gray-600 font-medium rounded-xl hover:bg-gray-50">
+                  <Link to="/login" onClick={() => setMenuOpen(false)} className="w-full text-center py-3 text-gray-600 font-medium rounded-xl hover:bg-gray-50 text-sm">
                     Login
                   </Link>
-                  <Link to="/register" onClick={() => setMenuOpen(false)} className="w-full text-center py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-100">
-                    Get Started
+                  <Link to="/register" onClick={() => setMenuOpen(false)}>
+                    <Button variant="indigo" size="sm" className="w-full shadow-lg shadow-indigo-100 font-bold">
+                      Get Started
+                    </Button>
                   </Link>
                 </div>
               )}

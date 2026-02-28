@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Search, User, Mail, Phone, Calendar, Heart, RefreshCw, AlertCircle, FileText } from 'lucide-react';
+import { Button, LoadingSpinner } from '../components/UI';
+import apiClient from '../utils/apiClient';
 import { useAuth } from '../hooks/useAuth';
 
 const AdminPatients = () => {
@@ -13,8 +13,7 @@ const AdminPatients = () => {
     const fetchPatients = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`http://localhost:5000/api/admin/patients`, {
-                headers: { Authorization: `Bearer ${token}` },
+            const response = await apiClient.get('/admin/patients', {
                 params: { search }
             });
             setPatients(response.data.data);
@@ -36,12 +35,14 @@ const AdminPatients = () => {
                     <h1 className="text-3xl font-bold text-gray-800">Patient Registry</h1>
                     <p className="text-gray-600">Manage patient profiles and clinical history.</p>
                 </div>
-                <button
+                <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={fetchPatients}
-                    className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition"
+                    className="text-gray-400 hover:text-blue-600"
                 >
-                    <RefreshCw size={24} />
-                </button>
+                    <RefreshCw size={20} />
+                </Button>
             </div>
 
             <div className="mb-6 max-w-md">
@@ -58,9 +59,7 @@ const AdminPatients = () => {
             </div>
 
             {loading ? (
-                <div className="flex justify-center p-20">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                </div>
+                <LoadingSpinner />
             ) : patients.length === 0 ? (
                 <div className="bg-white p-12 text-center rounded-xl border border-dashed border-gray-300">
                     <AlertCircle className="mx-auto text-gray-400 mb-4" size={48} />
@@ -122,9 +121,14 @@ const AdminPatients = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <button className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition" title="View Records">
-                                            <FileText size={20} />
-                                        </button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-blue-600 hover:bg-blue-50 p-2 rounded-full"
+                                            title="View Records"
+                                        >
+                                            <FileText size={18} />
+                                        </Button>
                                     </td>
                                 </tr>
                             ))}

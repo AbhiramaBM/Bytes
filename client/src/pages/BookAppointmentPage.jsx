@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle, Sparkles, Bot } from 'lucide-react';
 import { Card, Button, Input, Select, Textarea, LoadingSpinner } from '../components/UI';
 import apiClient from '../utils/apiClient';
 
@@ -12,6 +12,14 @@ export const BookAppointmentPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [suggestedSlots, setSuggestedSlots] = useState([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [symptomsInput, setSymptomsInput] = useState('');
+  const [aiResult, setAiResult] = useState(null);
+  const [aiConversationId, setAiConversationId] = useState(null);
+  const [slots, setSlots] = useState([]);
+  const [slotLoading, setSlotLoading] = useState(false);
+  const [followUpAnswers, setFollowUpAnswers] = useState({});
   const [formData, setFormData] = useState({
     doctorId: '',
     clinicId: '',
@@ -24,6 +32,28 @@ export const BookAppointmentPage = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (formData.consultationType !== 'online') return;
+
+    const text = (formData.reason || '').toLowerCase().trim();
+    if (text.length < 4) return;
+    if (!/(fever|cough|cold|pain|headache|vomit|diarrhea|breath|throat|chest)/.test(text)) return;
+
+    const timer = setTimeout(() => {
+      runSymptomAnalysis(text);
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [formData.reason]);
+
+  useEffect(() => {
+    if (formData.consultationType === 'online') return;
+    setAiResult(null);
+    setSymptomsInput('');
+    setFollowUpAnswers({});
+    setAiConversationId(null);
+  }, [formData.consultationType]);
 
   const fetchData = async () => {
     try {
@@ -64,11 +94,136 @@ export const BookAppointmentPage = () => {
     return result;
   };
 
+  const fetchSlots = async (doctorId, date) => {
+    if (!doctorId || !date) {
+      setSlots([]);
+      return;
+    }
+    setSlotLoading(true);
+    try {
+      const res = await apiClient.get('/patients/appointments/slots', { params: { doctorId, date } });
+      setSlots(res.data.data?.slots || []);
+    } catch (error) {
+      setErrorMsg(error.response?.data?.message || 'Failed to fetch slots');
+      setSlots([]);
+    } finally {
+      setSlotLoading(false);
+    }
+  };
+
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const next = { ...formData, [e.target.name]: e.target.value };
+    setFormData(next);
     // Clear errors when user changes input
     setErrorMsg('');
     setSuccessMsg('');
+
+    if (e.target.name === 'doctorId' || e.target.name === 'appointmentDate') {
+      const doctorId = e.target.name === 'doctorId' ? e.target.value : next.doctorId;
+      const date = e.target.name === 'appointmentDate' ? e.target.value : next.appointmentDate;
+      fetchSlots(doctorId, date);
+    }
+  };
+
+  const extractQuestionsFromText = (text = '') => {
+    const lines = `${text}`
+      .split('\n')
+      .map((line) => line.replace(/^[-*0-9.)\s]+/, '').trim())
+      .filter(Boolean);
+
+    const questions = lines
+      .filter((line) => line.includes('?'))
+      .map((line) => line.endsWith('?') ? line : `${line}?`);
+
+    return questions.slice(0, 6);
+  };
+
+  const buildFallbackQuestions = (symptoms = []) => {
+    const text = symptoms.join(' ').toLowerCase();
+    const base = [
+      'How many days have you been suffering from this?',
+      'How severe are the symptoms now (mild, moderate, severe)?',
+      'Do you have fever, breathing difficulty, or chest pain along with this?',
+      'Is there a similar illness history in your family?',
+      'Are you taking any medicines currently for this problem?',
+      'Did this start suddenly or gradually?'
+    ];
+
+    if (text.includes('fever')) {
+      base[2] = 'Is fever continuous or on and off, and what is the highest temperature?';
+    }
+    if (text.includes('cough')) {
+      base[2] = 'Is cough dry or with phlegm, and is there blood in sputum?';
+    }
+    if (text.includes('diabetes') || text.includes('sugar')) {
+      base[3] = 'Do you or anyone in your family have diabetes history?';
+    }
+
+    return base;
+  };
+
+  const runSymptomAnalysis = async (reasonText = '') => {
+    const source = reasonText || symptomsInput;
+    const symptoms = source.split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+    if (symptoms.length === 0) {
+      setErrorMsg('Enter symptoms before AI analysis');
+      return;
+    }
+    setErrorMsg('');
+    try {
+      const prompt = `Patient symptoms: ${symptoms.join(', ')}.
+You are a triage assistant. Ask ONLY 6 concise follow-up questions.
+Rules:
+1) Output only questions, one per line.
+2) No advice, no diagnosis, no treatment, no explanation.
+3) Include: duration, severity, associated symptoms, family history, current medication, and risk red flags.
+4) Every line must end with a question mark.`;
+
+      const res = await apiClient.post('/ai/chat', {
+        message: prompt,
+        conversationId: aiConversationId || undefined
+      });
+
+      const responseMessage = res.data?.data?.message || '';
+      const parsedQuestions = extractQuestionsFromText(responseMessage);
+      const questions = parsedQuestions.length >= 4 ? parsedQuestions : buildFallbackQuestions(symptoms);
+      setAiConversationId(res.data?.data?.conversationId || aiConversationId);
+      setAiResult({
+        followUpQuestions: questions,
+        rawMessage: responseMessage
+      });
+
+      const initialAnswers = {};
+      questions.forEach((q) => {
+        initialAnswers[q] = followUpAnswers[q] || '';
+      });
+      setFollowUpAnswers(initialAnswers);
+    } catch (error) {
+      setErrorMsg(error.response?.data?.message || 'AI analysis failed');
+    }
+  };
+
+  const fetchSuggestedSlots = async () => {
+    if (!formData.doctorId || !formData.appointmentDate) {
+      setErrorMsg('Select doctor and date before requesting suggestions');
+      return;
+    }
+
+    setSuggestLoading(true);
+    setErrorMsg('');
+    try {
+      const res = await apiClient.post('/patients/appointments/suggest-time', {
+        doctorId: formData.doctorId,
+        appointmentDate: formData.appointmentDate,
+        preferredTime: formData.appointmentTime || undefined
+      });
+      setSuggestedSlots(res.data.data?.suggestedSlots || []);
+    } catch (error) {
+      setErrorMsg(error.response?.data?.message || 'Failed to fetch suggested slots');
+      setSuggestedSlots([]);
+    } finally {
+      setSuggestLoading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -81,12 +236,24 @@ export const BookAppointmentPage = () => {
       const normalizedTime = convertTo24Hour(formData.appointmentTime);
       const payload = {
         ...formData,
-        appointmentTime: normalizedTime
+        appointmentTime: normalizedTime,
+        aiTriage: aiResult ? {
+          symptoms: (symptomsInput || formData.reason || '').split(/[,\n]/).map((s) => s.trim()).filter(Boolean),
+          followUpQuestions: aiResult.followUpQuestions || [],
+          followUpAnswers: Object.entries(followUpAnswers).map(([question, answer]) => ({ question, answer })),
+          riskLevel: aiResult.riskLevel,
+          likelyConditions: aiResult.likelyConditions || [],
+          recommendedSpecializations: aiResult.recommendedSpecializations || [],
+          doctorAdvice: aiResult.doctorVisitAdvice || ''
+        } : undefined
       };
 
       const response = await apiClient.post('/patients/appointments', payload);
       if (response.data.success) {
         setSuccessMsg('Appointment booked successfully!');
+        setSlots((prev) => prev.map((slot) => (
+          slot.startTime === normalizedTime ? { ...slot, isBooked: true } : slot
+        )));
         setTimeout(() => navigate('/patient/appointments'), 1500);
       }
     } catch (error) {
@@ -100,6 +267,7 @@ export const BookAppointmentPage = () => {
   };
 
   if (loading) return <LoadingSpinner />;
+  const filteredDoctors = doctors;
 
   return (
     <div className="container mx-auto py-10 max-w-2xl px-4">
@@ -140,7 +308,7 @@ export const BookAppointmentPage = () => {
               name="doctorId"
               value={formData.doctorId}
               onChange={handleChange}
-              options={doctors.map(d => ({
+              options={filteredDoctors.map(d => ({
                 value: d._id, // Fixed: MongoDB uses _id
                 label: `${d.fullName} - ${d.specialization}`
               }))}
@@ -164,9 +332,8 @@ export const BookAppointmentPage = () => {
             <div className="grid md:grid-cols-2 gap-4">
               <Input
                 label="Appointment Date"
-                type="text"
+                type="date"
                 name="appointmentDate"
-                placeholder="YYYY-MM-DD"
                 value={formData.appointmentDate}
                 onChange={handleChange}
                 required
@@ -182,6 +349,65 @@ export const BookAppointmentPage = () => {
                 required
                 className="bg-gray-50"
               />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                onClick={fetchSuggestedSlots}
+                variant="secondary"
+                size="sm"
+                disabled={suggestLoading}
+                className="inline-flex items-center gap-2"
+              >
+                <Sparkles size={16} />
+                {suggestLoading ? 'Finding best slots...' : 'Suggest Best Time'}
+              </Button>
+              {suggestedSlots.length > 0 && (
+                <p className="text-xs text-gray-500">Click a suggested slot to auto-fill time.</p>
+              )}
+            </div>
+
+            {suggestedSlots.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {suggestedSlots.map((slot) => (
+                  <button
+                    key={slot}
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, appointmentTime: slot }))}
+                    className="px-3 py-1.5 text-sm rounded-full border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                  >
+                    {slot}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div>
+              <p className="text-sm font-semibold text-gray-700 mb-2">Calendar Slots (Green=Available, Red=Booked)</p>
+              {slotLoading ? (
+                <p className="text-sm text-gray-500">Loading slots...</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {slots.map((slot) => (
+                    <button
+                      key={slot.startTime}
+                      type="button"
+                      disabled={slot.isBooked}
+                      onClick={() => setFormData((prev) => ({ ...prev, appointmentTime: slot.startTime }))}
+                      className={`px-3 py-1.5 text-sm rounded-full border ${
+                        slot.isBooked
+                          ? 'bg-red-100 text-red-700 border-red-200 cursor-not-allowed'
+                          : formData.appointmentTime === slot.startTime
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200'
+                      }`}
+                    >
+                      {slot.startTime}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <Select
@@ -205,6 +431,46 @@ export const BookAppointmentPage = () => {
               rows="4"
               className="bg-gray-50"
             />
+
+            {formData.consultationType === 'online' && (
+              <div className="pt-4 border-t border-gray-100">
+                <Textarea
+                  label="Symptoms (AI-assisted Triage)"
+                  value={symptomsInput}
+                  onChange={(e) => setSymptomsInput(e.target.value)}
+                  placeholder="e.g., fever, body pain, sore throat"
+                  rows="3"
+                  className="bg-gray-50"
+                />
+                <Button type="button" onClick={() => runSymptomAnalysis()} variant="secondary" size="sm" className="inline-flex items-center gap-2 mt-2">
+                  <Bot size={16} />
+                  Ask AI Follow-up Questions
+                </Button>
+
+                {aiResult && (
+                  <div className="rounded-xl p-4 border bg-blue-50 border-blue-200 mt-3">
+                    {aiResult.followUpQuestions?.length > 0 ? (
+                      <div className="space-y-2">
+                        {aiResult.followUpQuestions.slice(0, 6).map((q, idx) => (
+                          <div key={idx}>
+                            <p className="text-sm text-gray-700 font-medium">{q}</p>
+                            <input
+                              type="text"
+                              value={followUpAnswers[q] || ''}
+                              onChange={(e) => setFollowUpAnswers((prev) => ({ ...prev, [q]: e.target.value }))}
+                              className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
+                              placeholder="Enter your answer"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-600">{aiResult.rawMessage || 'No follow-up questions generated.'}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex gap-4 pt-6 border-t border-gray-100">

@@ -1,7 +1,9 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import AIConversation from '../models/AIConversation.js';
 import AIMessage from '../models/AIMessage.js';
+import User from '../models/User.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
+import { analyzeSymptoms } from '../services/aiService.js';
 
 const SYSTEM_PROMPT = `You are a professional AI Health Assistant for RuralCare Connect, a rural healthcare platform.
 
@@ -98,10 +100,24 @@ async function getAIResponse(message, history) {
 export const chatWithAI = async (req, res) => {
     try {
         const userId = req.user.userId;
-        const { message, conversationId } = req.body;
+        const { message, conversationId, saveHistory = true } = req.body;
 
         if (!message || !message.trim()) {
             return sendError(res, 'Message cannot be empty', 400);
+        }
+
+        if (!saveHistory) {
+            const history = [{ role: 'user', content: message.trim() }];
+            let aiResponse = await getAIResponse(message.trim(), history);
+            if (!aiResponse) {
+                aiResponse = getLocalResponse(message.trim());
+            }
+
+            return sendSuccess(res, {
+                conversationId: null,
+                message: aiResponse,
+                messageId: null
+            }, 'AI response generated');
         }
 
         let conversation;
@@ -200,6 +216,48 @@ export const deleteConversation = async (req, res) => {
         sendSuccess(res, null, 'Conversation deleted');
     } catch (error) {
         sendError(res, 'Error deleting conversation', 500, error);
+    }
+};
+
+export const symptomCheck = async (req, res) => {
+    try {
+        const { symptoms } = req.body;
+
+        if (!Array.isArray(symptoms) || symptoms.length === 0) {
+            return sendError(res, 'symptoms must be a non-empty array', 400);
+        }
+
+        const cleanedSymptoms = symptoms
+            .map((item) => `${item}`.trim())
+            .filter(Boolean)
+            .slice(0, 20);
+
+        if (cleanedSymptoms.length === 0) {
+            return sendError(res, 'Provide valid symptom text', 400);
+        }
+
+        const analysis = await analyzeSymptoms(cleanedSymptoms);
+        const specFilters = (analysis.recommendedSpecializations || []).slice(0, 3);
+
+        let recommendedDoctors = [];
+        if (specFilters.length > 0) {
+            const regexList = specFilters.map((s) => new RegExp(s, 'i'));
+            recommendedDoctors = await User.find({
+                role: 'doctor',
+                isActive: { $ne: false },
+                $or: regexList.map((rx) => ({ specialization: rx }))
+            })
+                .select('_id fullName specialization consultationFee city profileImage rating')
+                .limit(6);
+        }
+
+        sendSuccess(res, {
+            symptoms: cleanedSymptoms,
+            ...analysis,
+            recommendedDoctors
+        }, 'Symptom analysis complete');
+    } catch (error) {
+        sendError(res, `Symptom analysis failed: ${error.message}`, 500);
     }
 };
 

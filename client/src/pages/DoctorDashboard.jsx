@@ -31,7 +31,7 @@ export const DoctorDashboard = () => {
       setAppointments(appts);
       setStats({
         totalAppointments: appts.length,
-        pendingAppointments: appts.filter(a => a.status === 'pending').length,
+        pendingAppointments: appts.filter(a => ['pending', 'booked'].includes(a.status)).length,
         appointedAppointments: appts.filter(a => a.status === 'appointed').length,
         completedAppointments: appts.filter(a => a.status === 'completed').length
       });
@@ -65,6 +65,18 @@ export const DoctorDashboard = () => {
       window.location.href = `tel:${phone}`;
     } finally {
       setCallingId(null);
+    }
+  };
+
+  const handleVideoCall = async (appointmentId) => {
+    try {
+      const res = await apiClient.get(`/doctors/appointments/${appointmentId}/video-room`);
+      const url = res.data?.data?.roomUrl;
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    } catch (error) {
+      alert(error.response?.data?.message || 'Failed to open video room');
     }
   };
 
@@ -102,7 +114,7 @@ export const DoctorDashboard = () => {
 
       {/* Tabs */}
       <div className="flex gap-4 mb-6 border-b">
-        {['all', 'pending', 'approved', 'appointed', 'completed', 'rejected'].map(tab => (
+        {['all', 'booked', 'pending', 'approved', 'appointed', 'completed', 'rejected'].map(tab => (
           <button
             key={tab}
             className={`pb-2 px-4 capitalize font-medium ${activeTab === tab ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-blue-600'}`}
@@ -137,7 +149,7 @@ export const DoctorDashboard = () => {
               </thead>
               <tbody>
                 {filteredAppointments.map((appt) => (
-                  <tr key={appt.id} className="border-b hover:bg-gray-50">
+                  <tr key={appt._id} className="border-b hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <div className="font-medium text-gray-900">{appt.patientName}</div>
                       <div className="text-xs text-gray-400 flex items-center gap-1 mt-1">
@@ -150,6 +162,7 @@ export const DoctorDashboard = () => {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-bold capitalize ${appt.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                        appt.status === 'booked' ? 'bg-yellow-100 text-yellow-700' :
                         appt.status === 'approved' ? 'bg-blue-100 text-blue-700' :
                           appt.status === 'appointed' ? 'bg-indigo-100 text-indigo-700' :
                             appt.status === 'completed' ? 'bg-green-100 text-green-700' :
@@ -166,28 +179,32 @@ export const DoctorDashboard = () => {
                             size="sm"
                             variant="ghost"
                             className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                            onClick={() => handleCall(appt.id, appt.patientPhone)}
-                            loading={callingId === appt.id}
+                            onClick={() => handleCall(appt._id, appt.patientPhone)}
+                            loading={callingId === appt._id}
                           >
                             <Phone size={14} className="mr-1" />
                             Call
                           </Button>
                         )}
 
-                        {appt.status === 'pending' && (
+                        {['pending', 'booked'].includes(appt.status) && (
                           <>
-                            <Button size="sm" variant="success" onClick={() => handleStatusChange(appt.id, 'approved')}>Approve</Button>
-                            <Button size="sm" variant="danger" onClick={() => handleStatusChange(appt.id, 'rejected')}>Reject</Button>
+                            <Button size="sm" variant="success" onClick={() => handleStatusChange(appt._id, 'approved')}>Approve</Button>
+                            <Button size="sm" variant="danger" onClick={() => handleStatusChange(appt._id, 'rejected')}>Reject</Button>
                           </>
                         )}
                         {appt.status === 'approved' && (
                           <>
-                            <Button size="sm" variant="indigo" onClick={() => handleStatusChange(appt.id, 'appointed')}>Arrived</Button>
-                            <Button size="sm" variant="primary" onClick={() => navigate(`/doctor/prescription/${appt.id}`)}>Prescribe</Button>
+                            <Button size="sm" variant="indigo" onClick={() => handleStatusChange(appt._id, 'appointed')}>Arrived</Button>
+                            <Button size="sm" variant="secondary" onClick={() => handleVideoCall(appt._id)}>Video Call</Button>
+                            <Button size="sm" variant="primary" onClick={() => navigate(`/doctor/prescription/${appt._id}`)}>Prescribe</Button>
                           </>
                         )}
                         {appt.status === 'appointed' && (
-                          <Button size="sm" variant="primary" onClick={() => navigate(`/doctor/prescription/${appt.id}`)}>Prescribe</Button>
+                          <>
+                            <Button size="sm" variant="secondary" onClick={() => handleVideoCall(appt._id)}>Video Call</Button>
+                            <Button size="sm" variant="primary" onClick={() => navigate(`/doctor/prescription/${appt._id}`)}>Prescribe</Button>
+                          </>
                         )}
                         {appt.status === 'completed' && (
                           <span className="text-xs text-gray-400 italic">Consultation Finished</span>

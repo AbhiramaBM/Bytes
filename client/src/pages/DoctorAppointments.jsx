@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Clock, MapPin, AlertCircle, FileText } from 'lucide-react';
+import { Calendar, Clock, MapPin, AlertCircle, FileText, Video } from 'lucide-react';
 import { Card, LoadingSpinner, Button } from '../components/UI';
 import apiClient from '../utils/apiClient';
 
@@ -34,7 +34,7 @@ const DoctorAppointments = () => {
   const handleApprove = async (appointmentId) => {
     try {
       await apiClient.put(`/doctors/appointments/${appointmentId}/status`, { status: 'approved' });
-      setAppointments(appts => appts.map(a => a.id === appointmentId ? { ...a, status: 'approved' } : a));
+      setAppointments(appts => appts.map(a => a._id === appointmentId ? { ...a, status: 'approved' } : a));
     } catch (error) {
       console.error('❌ Error approving appointment:', error);
       setError('Failed to approve appointment');
@@ -44,7 +44,7 @@ const DoctorAppointments = () => {
   const handleReject = async (appointmentId) => {
     try {
       await apiClient.put(`/doctors/appointments/${appointmentId}/status`, { status: 'rejected' });
-      setAppointments(appts => appts.map(a => a.id === appointmentId ? { ...a, status: 'rejected' } : a));
+      setAppointments(appts => appts.map(a => a._id === appointmentId ? { ...a, status: 'rejected' } : a));
     } catch (error) {
       console.error('❌ Error rejecting appointment:', error);
       setError('Failed to reject appointment');
@@ -54,10 +54,22 @@ const DoctorAppointments = () => {
   const handleComplete = async (appointmentId) => {
     try {
       await apiClient.put(`/doctors/appointments/${appointmentId}/status`, { status: 'completed' });
-      setAppointments(appts => appts.map(a => a.id === appointmentId ? { ...a, status: 'completed' } : a));
+      setAppointments(appts => appts.map(a => a._id === appointmentId ? { ...a, status: 'completed' } : a));
     } catch (error) {
       console.error('❌ Error completing appointment:', error);
       setError('Failed to complete appointment');
+    }
+  };
+
+  const handleVideoCall = async (appointmentId) => {
+    try {
+      const res = await apiClient.get(`/doctors/appointments/${appointmentId}/video-room`);
+      const url = res.data?.data?.roomUrl;
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    } catch (error) {
+      setError(error.response?.data?.message || 'Failed to open video room');
     }
   };
 
@@ -79,17 +91,16 @@ const DoctorAppointments = () => {
 
       {/* Filter Tabs */}
       <div className="flex gap-2 mb-6">
-        {['all', 'pending', 'approved', 'completed', 'rejected'].map(status => (
-          <button
+        {['all', 'booked', 'pending', 'approved', 'appointed', 'completed', 'rejected'].map(status => (
+          <Button
             key={status}
             onClick={() => setFilter(status)}
-            className={`px-4 py-2 rounded-lg font-medium transition ${filter === status
-              ? 'bg-blue-600 text-white'
-              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
-              }`}
+            size="sm"
+            variant={filter === status ? 'primary' : 'secondary'}
+            className="font-bold"
           >
             {status.charAt(0).toUpperCase() + status.slice(1)}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -98,13 +109,14 @@ const DoctorAppointments = () => {
         {filteredAppointments.length > 0 ? (
           <div className="space-y-4">
             {filteredAppointments.map(appt => (
-              <div key={appt.id} className="border rounded-lg p-4 hover:shadow-md transition">
+              <div key={appt._id} className="border rounded-lg p-4 hover:shadow-md transition">
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <h3 className="text-lg font-semibold">{appt.patientName || 'N/A'}</h3>
                     <p className="text-sm text-gray-600">{appt.reason || 'General checkup'}</p>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold ${appt.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                    appt.status === 'booked' ? 'bg-yellow-100 text-yellow-800' :
                     appt.status === 'approved' ? 'bg-green-100 text-green-800' :
                       appt.status === 'rejected' ? 'bg-red-100 text-red-800' :
                         'bg-blue-100 text-blue-800'
@@ -128,24 +140,49 @@ const DoctorAppointments = () => {
                   </div>
                 </div>
 
+                {appt.aiTriage && (
+                  <div className="mb-4 p-3 rounded-lg border bg-indigo-50 border-indigo-100">
+                    <p className="text-xs font-bold text-indigo-700 mb-1">AI TRIAGE</p>
+                    <p className="text-sm text-gray-700">
+                      Risk: <span className="font-semibold uppercase">{appt.aiTriage.riskLevel || 'n/a'}</span>
+                    </p>
+                    {appt.aiTriage.symptoms?.length > 0 && (
+                      <p className="text-sm text-gray-700">Symptoms: {appt.aiTriage.symptoms.join(', ')}</p>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex flex-wrap gap-2">
-                  {appt.status === 'pending' && (
+                  {['pending', 'booked'].includes(appt.status) && (
                     <>
-                      <Button size="sm" variant="success" onClick={() => handleApprove(appt.id)}>
+                      <Button size="sm" variant="success" onClick={() => handleApprove(appt._id)}>
                         Approve
                       </Button>
-                      <Button size="sm" variant="danger" onClick={() => handleReject(appt.id)}>
+                      <Button size="sm" variant="danger" onClick={() => handleReject(appt._id)}>
                         Reject
                       </Button>
                     </>
                   )}
                   {appt.status === 'approved' && (
                     <>
-                      <Button size="sm" variant="primary" onClick={() => navigate(`/doctor/prescription/${appt.id}`)}>
+                      <Button size="sm" variant="primary" onClick={() => navigate(`/doctor/prescription/${appt._id}`)}>
                         <FileText size={14} className="inline mr-1" /> Prescribe
                       </Button>
-                      <Button size="sm" variant="secondary" onClick={() => handleComplete(appt.id)}>
+                      <Button size="sm" variant="secondary" onClick={() => handleVideoCall(appt._id)}>
+                        <Video size={14} className="inline mr-1" /> Video Call
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={() => handleComplete(appt._id)}>
                         Mark Complete
+                      </Button>
+                    </>
+                  )}
+                  {appt.status === 'appointed' && (
+                    <>
+                      <Button size="sm" variant="secondary" onClick={() => handleVideoCall(appt._id)}>
+                        <Video size={14} className="inline mr-1" /> Video Call
+                      </Button>
+                      <Button size="sm" variant="primary" onClick={() => navigate(`/doctor/prescription/${appt._id}`)}>
+                        <FileText size={14} className="inline mr-1" /> Prescribe
                       </Button>
                     </>
                   )}
