@@ -9,7 +9,8 @@ import {
   createDoctor,
   updateDoctorStatus,
   deleteDoctor,
-  adminUnlockPrescriptionPayment
+  adminUnlockPrescriptionPayment,
+  getPendingPrescriptionPayments
 } from '../controllers/adminController.js';
 import {
   getAllClinics,
@@ -38,6 +39,7 @@ router.get('/doctors', authenticate, authorize(['admin']), getDoctorsForAdmin);
 router.post('/doctors', authenticate, authorize(['admin']), validateEmail, createDoctor);
 router.put('/doctors/:doctorId/status', authenticate, authorize(['admin']), validateObjectIdParam('doctorId'), updateDoctorStatus);
 router.delete('/doctors/:doctorId', authenticate, authorize(['admin']), validateObjectIdParam('doctorId'), deleteDoctor);
+router.get('/prescriptions/pending-payments', authenticate, authorize(['admin']), getPendingPrescriptionPayments);
 router.post('/prescriptions/:prescriptionId/unlock-payment', authenticate, authorize(['admin']), validateObjectIdParam('prescriptionId'), adminUnlockPrescriptionPayment);
 
 

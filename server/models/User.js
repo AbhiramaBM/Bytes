@@ -1,5 +1,26 @@
 import mongoose from 'mongoose';
 
+const doctorLeaveSchema = new mongoose.Schema({
+  startDate: { type: String, required: true },
+  endDate: { type: String, required: true },
+  leaveType: { type: String, default: 'leave' },
+  reason: { type: String, default: '' }
+}, { _id: true });
+
+const doctorBlockedSlotSchema = new mongoose.Schema({
+  date: { type: String, required: true },
+  startTime: { type: String, required: true },
+  endTime: { type: String, required: true },
+  reason: { type: String, default: '' }
+}, { _id: true });
+
+const doctorAvailabilitySchema = new mongoose.Schema({
+  acceptingAppointments: { type: Boolean, default: true },
+  statusNote: { type: String, default: '' },
+  leaveRanges: { type: [doctorLeaveSchema], default: [] },
+  blockedSlots: { type: [doctorBlockedSlotSchema], default: [] }
+}, { _id: false });
+
 const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true },
@@ -15,6 +36,7 @@ const userSchema = new mongoose.Schema({
   experienceYears: { type: Number },
   consultationFee: { type: Number },
   availableSlots: [{ type: String }],
+  availability: { type: doctorAvailabilitySchema, default: () => ({}) },
   languages: [{ type: String }],
   education: { type: String },
   hospitalName: { type: String },

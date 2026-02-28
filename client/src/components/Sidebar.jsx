@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Pill, Heart, MessageSquare,
   LogOut, User, AlertCircle, Users, BarChart3,
-  UserPlus, ClipboardList, ChevronLeft, ChevronRight, Building2
+  UserPlus, ClipboardList, ChevronLeft, ChevronRight, Building2, ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
@@ -18,6 +18,7 @@ export const Sidebar = ({ isOpen, setIsOpen }) => {
     { icon: ClipboardList, label: 'Medical History', path: '/patient/medical-history' },
     { icon: Heart, label: 'Health Records', path: '/patient/health-records' },
     { icon: AlertCircle, label: 'Reminders', path: '/patient/medicine-reminders' },
+    { icon: MessageSquare, label: 'Doctor Messages', path: '/patient/messages' },
     { icon: MessageSquare, label: 'AI Health Assistant', path: '/patient/ai-chat' },
     { icon: User, label: 'Profile', path: '/patient/profile' },
   ] : user?.role === 'doctor' ? [
@@ -29,6 +30,7 @@ export const Sidebar = ({ isOpen, setIsOpen }) => {
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard' },
     { icon: UserPlus, label: 'Add Doctor', path: '/admin/add-doctor' },
     { icon: Users, label: 'Doctors', path: '/admin/doctors' },
+    { icon: ShieldCheck, label: 'Payments', path: '/admin/payments' },
     { icon: Building2, label: 'Clinics', path: '/admin/clinics' },
     { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
   ] : [];

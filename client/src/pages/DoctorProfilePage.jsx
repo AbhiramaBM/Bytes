@@ -60,8 +60,8 @@ const DoctorProfilePage = () => {
             <Link to="/patient/book-appointment">
               <Button size="sm" variant="primary">Book Appointment</Button>
             </Link>
-            <Link to="/patient/ai-chat">
-              <Button size="sm" variant="secondary">Chat</Button>
+            <Link to={`/patient/messages?doctorId=${doctor._id}`}>
+              <Button size="sm" variant="secondary">Chat with Doctor</Button>
             </Link>
           </div>
         </div>

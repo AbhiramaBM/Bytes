@@ -1,9 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Send, MessageCircle, AlertCircle } from 'lucide-react';
-import { Card, LoadingSpinner, Button, Input } from '../components/UI';
+import React, { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { AlertCircle, MessageCircle, Send } from 'lucide-react';
+import { Card, Input, Button, LoadingSpinner } from '../components/UI';
 import apiClient from '../utils/apiClient';
 
-const DoctorMessages = () => {
+const PatientMessages = () => {
+  const [searchParams] = useSearchParams();
+  const doctorIdFromQuery = searchParams.get('doctorId');
+
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -37,27 +41,38 @@ const DoctorMessages = () => {
       setError('');
       const response = await apiClient.get('/messages');
       const rows = response.data.data || [];
-      const mapped = rows.map((r) => ({
+      let mapped = rows.map((r) => ({
         id: r.id || r.conversationUserId,
-        patientName: r.fullName,
+        doctorName: r.fullName,
         lastMessage: r.lastMessage,
         unread: r.unreadCount || 0
       }));
+
+      if (doctorIdFromQuery && !mapped.some((item) => item.id === doctorIdFromQuery)) {
+        try {
+          const doctorRes = await apiClient.get(`/doctors/${doctorIdFromQuery}`);
+          const doctor = doctorRes.data?.data;
+          if (doctor?._id) {
+            mapped = [{
+              id: doctor._id,
+              doctorName: doctor.fullName || 'Doctor',
+              lastMessage: 'Start your conversation',
+              unread: 0
+            }, ...mapped];
+          }
+        } catch {
+          // Ignore; if doctor lookup fails keep current list
+        }
+      }
+
       setConversations(mapped);
 
       if (mapped.length > 0) {
-        if (selectedConversation?.id) {
-          const updatedSelection = mapped.find((item) => item.id === selectedConversation.id) || null;
-          if (updatedSelection) {
-            setSelectedConversation(updatedSelection);
-          } else {
-            setSelectedConversation(mapped[0]);
-            await loadMessages(mapped[0].id);
-          }
-        } else {
-          setSelectedConversation(mapped[0]);
-          await loadMessages(mapped[0].id);
-        }
+        const preferred = (doctorIdFromQuery && mapped.find((item) => item.id === doctorIdFromQuery))
+          || (selectedConversation?.id && mapped.find((item) => item.id === selectedConversation.id))
+          || mapped[0];
+        setSelectedConversation(preferred);
+        await loadMessages(preferred.id);
       }
     } catch (_err) {
       setError('Failed to load conversations');
@@ -75,7 +90,7 @@ const DoctorMessages = () => {
         id: m._id,
         text: m.message,
         timestamp: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        isUser: (m.senderId?._id || m.senderId) !== me.userId
+        isSelf: (m.senderId?._id || m.senderId) === me.userId
       })));
     } catch (_err) {
       setError('Failed to load messages');
@@ -98,15 +113,15 @@ const DoctorMessages = () => {
   };
 
   const filteredConversations = conversations.filter((conv) => (
-    `${conv.patientName || ''}`.toLowerCase().includes(searchTerm.trim().toLowerCase())
+    `${conv.doctorName || ''}`.toLowerCase().includes(searchTerm.trim().toLowerCase())
   ));
 
   if (loading) return <LoadingSpinner />;
 
   return (
     <div className="container mx-auto px-4 py-10 h-full">
-      <h1 className="text-4xl font-bold mb-2">Messages</h1>
-      <p className="text-gray-600 mb-6">Chat with your patients</p>
+      <h1 className="text-4xl font-bold mb-2">Doctor Messages</h1>
+      <p className="text-gray-600 mb-6">Chat directly with your assigned doctors</p>
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6 flex items-center gap-2">
@@ -118,7 +133,7 @@ const DoctorMessages = () => {
       <Card className="flex h-96">
         <div className="w-full md:w-1/3 border-r">
           <div className="p-4 border-b">
-            <Input placeholder="Search conversations..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <Input placeholder="Search doctors..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
           <div className="overflow-y-auto h-full">
             {filteredConversations.length > 0 ? (
@@ -132,7 +147,7 @@ const DoctorMessages = () => {
                   className={`p-4 border-b cursor-pointer transition ${selectedConversation?.id === conv.id ? 'bg-blue-100 border-blue-300' : 'hover:bg-gray-50'}`}
                 >
                   <div className="flex justify-between items-start">
-                    <h3 className="font-semibold">{conv.patientName}</h3>
+                    <h3 className="font-semibold">Dr. {conv.doctorName}</h3>
                     {conv.unread > 0 && (
                       <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">{conv.unread}</span>
                     )}
@@ -143,7 +158,7 @@ const DoctorMessages = () => {
             ) : (
               <div className="p-4 text-center text-gray-500">
                 <MessageCircle size={32} className="mx-auto mb-2 opacity-50" />
-                <p>{searchTerm ? 'No conversation matches search' : 'No conversations yet'}</p>
+                <p>{searchTerm ? 'No doctor matches search' : 'No conversations yet'}</p>
               </div>
             )}
           </div>
@@ -152,14 +167,14 @@ const DoctorMessages = () => {
         {selectedConversation ? (
           <div className="w-full md:w-2/3 flex flex-col">
             <div className="p-4 border-b">
-              <h2 className="font-bold text-lg">{selectedConversation.patientName}</h2>
+              <h2 className="font-bold text-lg">Dr. {selectedConversation.doctorName}</h2>
               <p className="text-sm text-gray-600">Conversation</p>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.map((msg) => (
-                <div key={msg.id} className={`flex ${msg.isUser ? 'justify-start' : 'justify-end'}`}>
-                  <div className={`max-w-xs px-4 py-2 rounded-lg ${msg.isUser ? 'bg-gray-200 text-gray-900' : 'bg-blue-600 text-white'}`}>
+                <div key={msg.id} className={`flex ${msg.isSelf ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-xs px-4 py-2 rounded-lg ${msg.isSelf ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-900'}`}>
                     <p>{msg.text}</p>
                     <p className="text-xs opacity-75 mt-1">{msg.timestamp}</p>
                   </div>
@@ -188,7 +203,7 @@ const DoctorMessages = () => {
           </div>
         ) : (
           <div className="w-full md:w-2/3 flex items-center justify-center text-gray-500">
-            <p>Select a conversation to start messaging</p>
+            <p>Select a doctor conversation to start messaging</p>
           </div>
         )}
       </Card>
@@ -196,4 +211,4 @@ const DoctorMessages = () => {
   );
 };
 
-export default DoctorMessages;
+export default PatientMessages;

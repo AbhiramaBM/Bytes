@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Clock, MapPin, AlertCircle, FileText, Video } from 'lucide-react';
+import { Calendar, Clock, MapPin, AlertCircle, FileText, Video, Phone, X } from 'lucide-react';
 import { Card, LoadingSpinner, Button } from '../components/UI';
 import apiClient from '../utils/apiClient';
 
@@ -9,10 +9,20 @@ const DoctorAppointments = () => {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [filter, setFilter] = useState('all');
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [callingId, setCallingId] = useState(null);
 
   useEffect(() => {
     fetchAppointments();
+    const intervalId = setInterval(fetchAppointments, 15000);
+    const onFocus = () => fetchAppointments();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   const fetchAppointments = async () => {
@@ -67,9 +77,37 @@ const DoctorAppointments = () => {
       const url = res.data?.data?.roomUrl;
       if (url) {
         window.open(url, '_blank', 'noopener,noreferrer');
+        setNotice('Video room opened successfully.');
       }
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to open video room');
+    }
+  };
+
+  const handleCall = async (appointmentId, phone) => {
+    if (!phone) {
+      setError('No patient phone number available for this appointment');
+      return;
+    }
+    try {
+      setCallingId(appointmentId);
+      await apiClient.post(`/doctors/appointments/${appointmentId}/log-call`);
+      setNotice('Call action logged. Opening dialer...');
+      window.location.href = `tel:${phone}`;
+    } catch (error) {
+      setError(error.response?.data?.message || 'Failed to log call');
+      window.location.href = `tel:${phone}`;
+    } finally {
+      setCallingId(null);
+    }
+  };
+
+  const handleViewDetails = async (appointmentId) => {
+    try {
+      const res = await apiClient.get(`/doctors/appointments/${appointmentId}`);
+      setSelectedAppointment(res.data?.data || null);
+    } catch (error) {
+      setError(error.response?.data?.message || 'Failed to load appointment details');
     }
   };
 
@@ -86,6 +124,14 @@ const DoctorAppointments = () => {
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6 flex items-center gap-2">
           <AlertCircle size={20} />
           <span>{error}</span>
+        </div>
+      )}
+      {notice && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6 flex items-center justify-between gap-2">
+          <span>{notice}</span>
+          <button type="button" onClick={() => setNotice('')} className="text-green-800">
+            <X size={16} />
+          </button>
         </div>
       )}
 
@@ -153,6 +199,11 @@ const DoctorAppointments = () => {
                 )}
 
                 <div className="flex flex-wrap gap-2">
+                  {appt.status !== 'completed' && appt.status !== 'rejected' && (
+                    <Button size="sm" variant="ghost" className="text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => handleCall(appt._id, appt.patientPhone)} loading={callingId === appt._id}>
+                      <Phone size={14} className="inline mr-1" /> Call
+                    </Button>
+                  )}
                   {['pending', 'booked'].includes(appt.status) && (
                     <>
                       <Button size="sm" variant="success" onClick={() => handleApprove(appt._id)}>
@@ -186,7 +237,7 @@ const DoctorAppointments = () => {
                       </Button>
                     </>
                   )}
-                  <Button size="sm" variant="secondary">
+                  <Button size="sm" variant="secondary" onClick={() => handleViewDetails(appt._id)}>
                     View Details
                   </Button>
                 </div>
@@ -200,6 +251,58 @@ const DoctorAppointments = () => {
           </div>
         )}
       </Card>
+
+      {selectedAppointment && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-2xl max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-800">Appointment Details</h3>
+              <button type="button" onClick={() => setSelectedAppointment(null)} className="text-gray-500 hover:text-gray-700">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-gray-500">Patient Name</p>
+                <p className="font-semibold">{selectedAppointment.patientId?.fullName || selectedAppointment.patientName || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Patient Phone</p>
+                <p className="font-semibold">{selectedAppointment.patientId?.phone || selectedAppointment.patientPhone || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Date</p>
+                <p className="font-semibold">{selectedAppointment.appointmentDate}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Time</p>
+                <p className="font-semibold">{selectedAppointment.appointmentTime}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Consultation Type</p>
+                <p className="font-semibold capitalize">{selectedAppointment.consultationType || 'in-person'}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Status</p>
+                <p className="font-semibold capitalize">{selectedAppointment.status}</p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <p className="text-gray-500 text-sm">Reason</p>
+              <p className="font-medium text-gray-800">{selectedAppointment.reason || 'Not provided'}</p>
+            </div>
+            {selectedAppointment.aiTriage && (
+              <div className="mt-4 p-3 rounded-lg border bg-indigo-50 border-indigo-100">
+                <p className="text-xs font-bold text-indigo-700 mb-2">AI TRIAGE DETAILS</p>
+                <p className="text-sm text-gray-700">Risk: <span className="font-semibold uppercase">{selectedAppointment.aiTriage.riskLevel || 'n/a'}</span></p>
+                {selectedAppointment.aiTriage.symptoms?.length > 0 && (
+                  <p className="text-sm text-gray-700">Symptoms: {selectedAppointment.aiTriage.symptoms.join(', ')}</p>
+                )}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
     </div>
   );
 };

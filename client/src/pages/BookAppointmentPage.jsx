@@ -19,6 +19,7 @@ export const BookAppointmentPage = () => {
   const [aiConversationId, setAiConversationId] = useState(null);
   const [slots, setSlots] = useState([]);
   const [slotLoading, setSlotLoading] = useState(false);
+  const [availabilityMessage, setAvailabilityMessage] = useState('');
   const [followUpAnswers, setFollowUpAnswers] = useState({});
   const [formData, setFormData] = useState({
     doctorId: '',
@@ -97,15 +98,19 @@ export const BookAppointmentPage = () => {
   const fetchSlots = async (doctorId, date) => {
     if (!doctorId || !date) {
       setSlots([]);
+      setAvailabilityMessage('');
       return;
     }
     setSlotLoading(true);
     try {
       const res = await apiClient.get('/patients/appointments/slots', { params: { doctorId, date } });
       setSlots(res.data.data?.slots || []);
+      const unavailableInfo = res.data.data?.unavailableSlots || [];
+      setAvailabilityMessage(unavailableInfo.length ? 'Some time slots are blocked by doctor availability settings.' : '');
     } catch (error) {
       setErrorMsg(error.response?.data?.message || 'Failed to fetch slots');
       setSlots([]);
+      setAvailabilityMessage('');
     } finally {
       setSlotLoading(false);
     }
@@ -233,6 +238,13 @@ Rules:
     setSuccessMsg('');
 
     try {
+      const selectedDoctor = doctors.find((d) => d._id === formData.doctorId);
+      if (selectedDoctor?.availability?.acceptingAppointments === false) {
+        setErrorMsg(selectedDoctor.availability.statusNote || 'Doctor is temporarily unavailable for appointments');
+        setSubmitting(false);
+        return;
+      }
+
       const normalizedTime = convertTo24Hour(formData.appointmentTime);
       const payload = {
         ...formData,
@@ -268,6 +280,8 @@ Rules:
 
   if (loading) return <LoadingSpinner />;
   const filteredDoctors = doctors;
+  const selectedDoctor = doctors.find((d) => d._id === formData.doctorId);
+  const doctorUnavailable = selectedDoctor?.availability?.acceptingAppointments === false;
 
   return (
     <div className="container mx-auto py-10 max-w-2xl px-4">
@@ -310,11 +324,17 @@ Rules:
               onChange={handleChange}
               options={filteredDoctors.map(d => ({
                 value: d._id, // Fixed: MongoDB uses _id
-                label: `${d.fullName} - ${d.specialization}`
+                label: `${d.fullName} - ${d.specialization}${d.availability?.acceptingAppointments === false ? ' (Temporarily Unavailable)' : ''}`
               }))}
               required
               className="bg-gray-50"
             />
+
+            {doctorUnavailable && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+                {selectedDoctor?.availability?.statusNote || 'This doctor is currently not accepting appointments.'}
+              </div>
+            )}
 
             <Select
               label="Select Clinic"
@@ -384,7 +404,8 @@ Rules:
             )}
 
             <div>
-              <p className="text-sm font-semibold text-gray-700 mb-2">Calendar Slots (Green=Available, Red=Booked)</p>
+              <p className="text-sm font-semibold text-gray-700 mb-2">Calendar Slots (Green=Available, Red=Booked, Amber=Doctor Blocked)</p>
+              {availabilityMessage && <p className="text-xs text-amber-700 mb-2">{availabilityMessage}</p>}
               {slotLoading ? (
                 <p className="text-sm text-gray-500">Loading slots...</p>
               ) : (
@@ -393,11 +414,14 @@ Rules:
                     <button
                       key={slot.startTime}
                       type="button"
-                      disabled={slot.isBooked}
+                      title={slot.unavailableReason || ''}
+                      disabled={slot.isBooked || slot.isUnavailable}
                       onClick={() => setFormData((prev) => ({ ...prev, appointmentTime: slot.startTime }))}
                       className={`px-3 py-1.5 text-sm rounded-full border ${
                         slot.isBooked
                           ? 'bg-red-100 text-red-700 border-red-200 cursor-not-allowed'
+                          : slot.isUnavailable
+                            ? 'bg-amber-100 text-amber-800 border-amber-200 cursor-not-allowed'
                           : formData.appointmentTime === slot.startTime
                             ? 'bg-blue-600 text-white border-blue-600'
                             : 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200'
@@ -478,7 +502,7 @@ Rules:
               type="submit"
               variant="success"
               size="sm"
-              disabled={submitting}
+              disabled={submitting || doctorUnavailable}
               className="flex-1 btn-premium shadow-lg shadow-green-100 font-bold"
             >
               {submitting ? 'Confirming...' : 'Confirm Appointment'}

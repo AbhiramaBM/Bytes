@@ -20,6 +20,7 @@ import PrescriptionsPage from './pages/PrescriptionsPage';
 import HealthRecordsPage from './pages/HealthRecordsPage';
 import MedicineRemindersPage from './pages/MedicineRemindersPage';
 import ChatPage from './pages/ChatPage';
+import PatientMessages from './pages/PatientMessages';
 import DoctorAppointments from './pages/DoctorAppointments';
 import DoctorDescription from './pages/DoctorDescription';
 import DoctorMessages from './pages/DoctorMessages';
@@ -28,6 +29,7 @@ import AdminAnalytics from './pages/AdminAnalytics';
 import AdminClinics from './pages/AdminClinics';
 import AdminAddDoctor from './pages/AdminAddDoctor';
 import AdminDoctors from './pages/AdminDoctors';
+import AdminPayments from './pages/AdminPayments';
 import DoctorPrescription from './pages/DoctorPrescription';
 import MedicalHistoryPage from './pages/MedicalHistoryPage';
 import SymptomCheckerPage from './pages/SymptomCheckerPage';
@@ -52,6 +54,7 @@ function App() {
           <Route path="/patient/health-records" element={<ProtectedRoute requiredRole="patient"><HealthRecordsPage /></ProtectedRoute>} />
           <Route path="/patient/medicine-reminders" element={<ProtectedRoute requiredRole="patient"><MedicineRemindersPage /></ProtectedRoute>} />
           <Route path="/patient/ai-chat" element={<ProtectedRoute requiredRole="patient"><ChatPage /></ProtectedRoute>} />
+          <Route path="/patient/messages" element={<ProtectedRoute requiredRole="patient"><PatientMessages /></ProtectedRoute>} />
           <Route path="/patient/profile" element={<ProtectedRoute requiredRole="patient"><ProfilePage /></ProtectedRoute>} />
           <Route path="/patient/medical-history" element={<ProtectedRoute requiredRole="patient"><MedicalHistoryPage /></ProtectedRoute>} />
           <Route path="/patient/symptom-checker" element={<ProtectedRoute requiredRole="patient"><SymptomCheckerPage /></ProtectedRoute>} />
@@ -69,6 +72,7 @@ function App() {
           <Route path="/admin/analytics" element={<ProtectedRoute requiredRole="admin"><AdminAnalytics /></ProtectedRoute>} />
           <Route path="/admin/add-doctor" element={<ProtectedRoute requiredRole="admin"><AdminAddDoctor /></ProtectedRoute>} />
 <Route path="/admin/doctors" element={<ProtectedRoute requiredRole="admin"><AdminDoctors /></ProtectedRoute>} />
+          <Route path="/admin/payments" element={<ProtectedRoute requiredRole="admin"><AdminPayments /></ProtectedRoute>} />
           <Route path="/admin/clinics" element={<ProtectedRoute requiredRole="admin"><AdminClinics /></ProtectedRoute>} />
 
           {/* Public Routes */}

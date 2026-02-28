@@ -288,8 +288,45 @@ export const getSystemAnalytics = async (req, res) => {
   }
 };
 
+export const getPendingPrescriptionPayments = async (req, res) => {
+  try {
+    const rows = await Prescription.find({ status: 'pending_payment' })
+      .populate('patientId', 'fullName email phone')
+      .populate('doctorId', 'fullName specialization')
+      .populate('appointmentId', 'appointmentDate appointmentTime date startTime')
+      .sort({ createdAt: -1 });
+
+    const data = rows.map((p) => ({
+      _id: p._id,
+      status: p.status,
+      totalAmount: p.totalAmount || 0,
+      currency: p.currency || 'INR',
+      createdAt: p.createdAt,
+      patient: p.patientId ? {
+        _id: p.patientId._id,
+        fullName: p.patientId.fullName,
+        email: p.patientId.email,
+        phone: p.patientId.phone
+      } : null,
+      doctor: p.doctorId ? {
+        _id: p.doctorId._id,
+        fullName: p.doctorId.fullName,
+        specialization: p.doctorId.specialization
+      } : null,
+      appointment: p.appointmentId ? {
+        _id: p.appointmentId._id,
+        appointmentDate: p.appointmentId.appointmentDate || p.appointmentId.date,
+        appointmentTime: p.appointmentId.appointmentTime || p.appointmentId.startTime
+      } : null
+    }));
+
+    sendSuccess(res, data, 'Pending prescription payments fetched');
+  } catch (error) {
+    sendError(res, 'Error fetching pending prescription payments', 500, error);
+  }
+};
+
 export const adminUnlockPrescriptionPayment = async (req, res) => {
-  const session = await mongoose.startSession();
   try {
     const adminId = req.user?.userId;
     const { prescriptionId } = req.params;
@@ -299,31 +336,41 @@ export const adminUnlockPrescriptionPayment = async (req, res) => {
       return sendError(res, 'Invalid prescriptionId', 400);
     }
 
-    let payload = null;
+    const prescription = await Prescription.findById(prescriptionId);
+    if (!prescription) return sendError(res, 'Prescription not found', 404);
 
-    await session.withTransaction(async () => {
-      const prescription = await Prescription.findById(prescriptionId).session(session);
-      if (!prescription) throw new Error('PRESCRIPTION_NOT_FOUND');
+    if (prescription.status !== 'paid') {
+      prescription.status = 'paid';
+      await prescription.save();
+    }
 
-      if (prescription.status !== 'paid') {
-        prescription.status = 'paid';
-        await prescription.save({ session });
-      }
+    const appointment = await Appointment.findById(prescription.appointmentId);
+    if (appointment && appointment.status !== 'completed') {
+      appointment.status = 'completed';
+      await appointment.save();
+    }
 
-      const appointment = await Appointment.findById(prescription.appointmentId).session(session);
-      if (appointment && appointment.status !== 'completed') {
-        appointment.status = 'completed';
-        await appointment.save({ session });
-      }
+    let payment = await Payment.findOne({
+      prescriptionId: prescription._id,
+      patientId: prescription.patientId,
+      status: 'success'
+    });
 
-      let payment = await Payment.findOne({
+    if (!payment) {
+      // Reuse pending payment if it exists, otherwise create a success record.
+      payment = await Payment.findOne({
         prescriptionId: prescription._id,
         patientId: prescription.patientId,
-        status: 'success'
-      }).session(session);
+        status: 'pending'
+      });
 
-      if (!payment) {
-        payment = await Payment.create([{
+      if (payment) {
+        payment.status = 'success';
+        payment.gatewayPaymentId = payment.gatewayPaymentId || `ADMIN-${Date.now()}-${prescription._id.toString().slice(-6)}`;
+        payment.verifiedAt = new Date();
+        await payment.save();
+      } else {
+        payment = await Payment.create({
           prescriptionId: prescription._id,
           patientId: prescription.patientId,
           doctorId: prescription.doctorId,
@@ -333,42 +380,35 @@ export const adminUnlockPrescriptionPayment = async (req, res) => {
           status: 'success',
           gatewayPaymentId: `ADMIN-${Date.now()}-${prescription._id.toString().slice(-6)}`,
           verifiedAt: new Date()
-        }], { session });
-        payment = payment[0];
+        });
       }
+    }
 
-      const reminderCount = await createAutoRemindersForPrescription({
-        patientId: prescription.patientId,
-        prescriptionId: prescription._id,
-        appointmentId: prescription.appointmentId,
-        medicines: prescription.medicines || [],
-        session
-      });
-
-      await logAction(adminId, 'ADMIN_UNLOCK_PRESCRIPTION_PAYMENT', {
-        prescriptionId: prescription._id,
-        appointmentId: prescription.appointmentId,
-        paymentId: payment._id,
-        reason,
-        reminderCount
-      });
-
-      payload = {
-        prescriptionId: prescription._id,
-        paymentId: payment._id,
-        appointmentId: prescription.appointmentId,
-        reminderCount
-      };
+    const reminderCount = await createAutoRemindersForPrescription({
+      patientId: prescription.patientId,
+      prescriptionId: prescription._id,
+      appointmentId: prescription.appointmentId,
+      medicines: prescription.medicines || []
     });
+
+    await logAction(adminId, 'ADMIN_UNLOCK_PRESCRIPTION_PAYMENT', {
+      prescriptionId: prescription._id,
+      appointmentId: prescription.appointmentId,
+      paymentId: payment._id,
+      reason,
+      reminderCount
+    });
+
+    const payload = {
+      prescriptionId: prescription._id,
+      paymentId: payment._id,
+      appointmentId: prescription.appointmentId,
+      reminderCount
+    };
 
     sendSuccess(res, payload, 'Prescription payment unlocked by admin');
   } catch (error) {
-    if (error.message === 'PRESCRIPTION_NOT_FOUND') {
-      return sendError(res, 'Prescription not found', 404);
-    }
     sendError(res, 'Failed to unlock prescription payment', 500, error);
-  } finally {
-    await session.endSession();
   }
 };
 

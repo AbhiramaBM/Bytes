@@ -5,12 +5,13 @@ import Prescription from '../models/Prescription.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { logAction } from '../utils/auditLogger.js';
 import crypto from 'crypto';
+import { normalizeDoctorAvailability } from '../utils/doctorAvailability.js';
 
 // Get all doctors (for public listing)
 export const getAllDoctors = async (req, res) => {
   try {
     const doctors = await User.find({ role: 'doctor', isActive: { $ne: false } })
-      .select('fullName email phone specialization experience experienceYears consultationFee availableSlots languages education hospitalName rating profileImage address city state pincode latitude longitude googleMapsLink isActive');
+      .select('fullName email phone specialization experience experienceYears consultationFee availableSlots availability languages education hospitalName rating profileImage address city state pincode latitude longitude googleMapsLink isActive');
 
     sendSuccess(res, doctors, 'Doctors fetched successfully');
   } catch (error) {
@@ -24,7 +25,7 @@ export const getDoctorById = async (req, res) => {
   try {
     const { id } = req.params;
     const doctor = await User.findOne({ _id: id, role: 'doctor' })
-      .select('fullName email phone specialization experience experienceYears consultationFee availableSlots languages education hospitalName rating profileImage address city state pincode latitude longitude googleMapsLink isActive');
+      .select('fullName email phone specialization experience experienceYears consultationFee availableSlots availability languages education hospitalName rating profileImage address city state pincode latitude longitude googleMapsLink isActive');
 
     if (!doctor) return sendError(res, 'Doctor not found', 404);
     sendSuccess(res, doctor, 'Doctor fetched successfully');
@@ -241,6 +242,40 @@ export const getDoctorVideoRoom = async (req, res) => {
     sendSuccess(res, { roomId: appointment.videoRoomId, roomUrl }, 'Video room fetched');
   } catch (error) {
     sendError(res, 'Error fetching video room', 500, error);
+  }
+};
+
+export const getDoctorAvailability = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const doctor = await User.findOne({ _id: userId, role: 'doctor' }).select('availability');
+
+    if (!doctor) return sendError(res, 'Doctor not found', 404);
+    sendSuccess(res, doctor.availability || { acceptingAppointments: true, statusNote: '', leaveRanges: [], blockedSlots: [] }, 'Availability fetched successfully');
+  } catch (error) {
+    sendError(res, 'Error fetching doctor availability', 500, error);
+  }
+};
+
+export const updateDoctorAvailability = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const doctor = await User.findOne({ _id: userId, role: 'doctor' });
+    if (!doctor) return sendError(res, 'Doctor not found', 404);
+
+    const normalizedAvailability = normalizeDoctorAvailability(req.body?.availability || {});
+    doctor.availability = normalizedAvailability;
+    await doctor.save();
+
+    await logAction(userId, 'UPDATE_DOCTOR_AVAILABILITY', {
+      acceptingAppointments: normalizedAvailability.acceptingAppointments,
+      leaveCount: normalizedAvailability.leaveRanges.length,
+      blockedSlotCount: normalizedAvailability.blockedSlots.length
+    });
+
+    sendSuccess(res, doctor.availability, 'Doctor availability updated successfully');
+  } catch (error) {
+    sendError(res, 'Error updating doctor availability', 500, error);
   }
 };
 

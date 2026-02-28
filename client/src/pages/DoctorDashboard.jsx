@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, CheckCircle, XCircle, MessageSquare, FileText, AlertCircle, Clock, CheckSquare, Phone } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Calendar, CheckCircle, Clock, CheckSquare, Phone, PlusCircle, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Card, LoadingSpinner, Button } from '../components/UI';
 import apiClient from '../utils/apiClient';
 
@@ -15,11 +15,42 @@ export const DoctorDashboard = () => {
     completedAppointments: 0
   });
   const [loading, setLoading] = useState(true);
+  const [availabilityLoading, setAvailabilityLoading] = useState(true);
+  const [availabilitySaving, setAvailabilitySaving] = useState(false);
   const [callingId, setCallingId] = useState(null);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [availabilityError, setAvailabilityError] = useState('');
+  const [availabilitySuccess, setAvailabilitySuccess] = useState('');
+  const [availability, setAvailability] = useState({
+    acceptingAppointments: true,
+    statusNote: '',
+    leaveRanges: [],
+    blockedSlots: []
+  });
+  const [leaveDraft, setLeaveDraft] = useState({
+    startDate: '',
+    endDate: '',
+    leaveType: 'leave',
+    reason: ''
+  });
+  const [blockDraft, setBlockDraft] = useState({
+    date: '',
+    startTime: '',
+    endTime: '',
+    reason: ''
+  });
 
   useEffect(() => {
     fetchAppointments();
+    fetchAvailability();
+    const intervalId = setInterval(fetchAppointments, 15000);
+    const onFocus = () => fetchAppointments();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   const fetchAppointments = async () => {
@@ -43,6 +74,24 @@ export const DoctorDashboard = () => {
     }
   };
 
+  const fetchAvailability = async () => {
+    try {
+      setAvailabilityLoading(true);
+      const response = await apiClient.get('/doctors/availability/me');
+      const payload = response.data?.data || {};
+      setAvailability({
+        acceptingAppointments: payload.acceptingAppointments !== false,
+        statusNote: payload.statusNote || '',
+        leaveRanges: payload.leaveRanges || [],
+        blockedSlots: payload.blockedSlots || []
+      });
+    } catch (err) {
+      setAvailabilityError(err.response?.data?.message || 'Failed to load availability settings');
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  };
+
   const handleStatusChange = async (appointmentId, status) => {
     try {
       await apiClient.put(`/doctors/appointments/${appointmentId}/status`, { status });
@@ -58,6 +107,7 @@ export const DoctorDashboard = () => {
     setCallingId(appointmentId);
     try {
       await apiClient.post(`/doctors/appointments/${appointmentId}/log-call`);
+      setNotice('Call action logged. Opening dialer...');
       window.location.href = `tel:${phone}`;
     } catch (error) {
       console.error('Error logging call:', error);
@@ -73,10 +123,75 @@ export const DoctorDashboard = () => {
       const res = await apiClient.get(`/doctors/appointments/${appointmentId}/video-room`);
       const url = res.data?.data?.roomUrl;
       if (url) {
+        setNotice('Video room opened successfully.');
         window.open(url, '_blank', 'noopener,noreferrer');
       }
     } catch (error) {
       alert(error.response?.data?.message || 'Failed to open video room');
+    }
+  };
+
+  const addLeaveRange = () => {
+    if (!leaveDraft.startDate || !leaveDraft.endDate) {
+      setAvailabilityError('Leave start and end date are required');
+      return;
+    }
+    if (leaveDraft.endDate < leaveDraft.startDate) {
+      setAvailabilityError('Leave end date cannot be before start date');
+      return;
+    }
+
+    setAvailabilityError('');
+    setAvailability((prev) => ({
+      ...prev,
+      leaveRanges: [...prev.leaveRanges, { ...leaveDraft }]
+    }));
+    setLeaveDraft({ startDate: '', endDate: '', leaveType: 'leave', reason: '' });
+  };
+
+  const addBlockedSlot = () => {
+    if (!blockDraft.date || !blockDraft.startTime || !blockDraft.endTime) {
+      setAvailabilityError('Blocked slot requires date, start time, and end time');
+      return;
+    }
+    if (blockDraft.endTime <= blockDraft.startTime) {
+      setAvailabilityError('Blocked slot end time must be after start time');
+      return;
+    }
+
+    setAvailabilityError('');
+    setAvailability((prev) => ({
+      ...prev,
+      blockedSlots: [...prev.blockedSlots, { ...blockDraft }]
+    }));
+    setBlockDraft({ date: '', startTime: '', endTime: '', reason: '' });
+  };
+
+  const removeLeaveRange = (index) => {
+    setAvailability((prev) => ({
+      ...prev,
+      leaveRanges: prev.leaveRanges.filter((_, idx) => idx !== index)
+    }));
+  };
+
+  const removeBlockedSlot = (index) => {
+    setAvailability((prev) => ({
+      ...prev,
+      blockedSlots: prev.blockedSlots.filter((_, idx) => idx !== index)
+    }));
+  };
+
+  const saveAvailability = async () => {
+    try {
+      setAvailabilitySaving(true);
+      setAvailabilityError('');
+      setAvailabilitySuccess('');
+      await apiClient.put('/doctors/availability', { availability });
+      setAvailabilitySuccess('Availability saved. New leave and blocked slots are now active.');
+    } catch (err) {
+      setAvailabilityError(err.response?.data?.message || 'Failed to save availability');
+    } finally {
+      setAvailabilitySaving(false);
     }
   };
 
@@ -91,6 +206,109 @@ export const DoctorDashboard = () => {
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-2">Doctor Dashboard</h1>
       <p className="text-gray-600 mb-8">Manage your patient appointments and prescriptions</p>
+
+      <Card className="mb-8">
+        <h2 className="text-xl font-bold mb-4">Leave & Temporary Availability</h2>
+        {availabilityLoading ? (
+          <p className="text-sm text-gray-500">Loading availability settings...</p>
+        ) : (
+          <div className="space-y-6">
+            <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
+              <div>
+                <p className="font-semibold text-gray-800">Accepting New Appointments</p>
+                <p className="text-xs text-gray-500">Turn this off when unavailable for any booking.</p>
+              </div>
+              <label className="inline-flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={availability.acceptingAppointments}
+                  onChange={(e) => setAvailability((prev) => ({ ...prev, acceptingAppointments: e.target.checked }))}
+                />
+                <span>{availability.acceptingAppointments ? 'Available' : 'Not Available'}</span>
+              </label>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Status Note (extra info for patients)</label>
+              <input
+                type="text"
+                value={availability.statusNote}
+                onChange={(e) => setAvailability((prev) => ({ ...prev, statusNote: e.target.value }))}
+                placeholder="Example: Emergency duty today, limited slots."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <p className="font-semibold text-gray-800">Add Leave Range</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="date" value={leaveDraft.startDate} onChange={(e) => setLeaveDraft((prev) => ({ ...prev, startDate: e.target.value }))} className="px-3 py-2 border border-gray-300 rounded-lg" />
+                  <input type="date" value={leaveDraft.endDate} onChange={(e) => setLeaveDraft((prev) => ({ ...prev, endDate: e.target.value }))} className="px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <select value={leaveDraft.leaveType} onChange={(e) => setLeaveDraft((prev) => ({ ...prev, leaveType: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                  <option value="leave">Leave</option>
+                  <option value="vacation">Vacation</option>
+                  <option value="conference">Conference</option>
+                  <option value="training">Training</option>
+                </select>
+                <input type="text" value={leaveDraft.reason} onChange={(e) => setLeaveDraft((prev) => ({ ...prev, reason: e.target.value }))} placeholder="Reason (optional)" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                <Button type="button" size="sm" variant="secondary" onClick={addLeaveRange}>
+                  <PlusCircle size={14} className="inline mr-1" />
+                  Add Leave
+                </Button>
+                {availability.leaveRanges.length > 0 && (
+                  <div className="space-y-2">
+                    {availability.leaveRanges.map((leave, idx) => (
+                      <div key={`${leave.startDate}-${leave.endDate}-${idx}`} className="flex items-center justify-between text-sm bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                        <span>{leave.startDate} to {leave.endDate} ({leave.leaveType}) {leave.reason ? `- ${leave.reason}` : ''}</span>
+                        <button type="button" onClick={() => removeLeaveRange(idx)} className="text-red-600">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <p className="font-semibold text-gray-800">Add Temporary Blocked Time</p>
+                <input type="date" value={blockDraft.date} onChange={(e) => setBlockDraft((prev) => ({ ...prev, date: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="time" value={blockDraft.startTime} onChange={(e) => setBlockDraft((prev) => ({ ...prev, startTime: e.target.value }))} className="px-3 py-2 border border-gray-300 rounded-lg" />
+                  <input type="time" value={blockDraft.endTime} onChange={(e) => setBlockDraft((prev) => ({ ...prev, endTime: e.target.value }))} className="px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <input type="text" value={blockDraft.reason} onChange={(e) => setBlockDraft((prev) => ({ ...prev, reason: e.target.value }))} placeholder="Reason (optional)" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                <Button type="button" size="sm" variant="secondary" onClick={addBlockedSlot}>
+                  <PlusCircle size={14} className="inline mr-1" />
+                  Add Block
+                </Button>
+                {availability.blockedSlots.length > 0 && (
+                  <div className="space-y-2">
+                    {availability.blockedSlots.map((block, idx) => (
+                      <div key={`${block.date}-${block.startTime}-${block.endTime}-${idx}`} className="flex items-center justify-between text-sm bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                        <span>{block.date} {block.startTime}-{block.endTime} {block.reason ? `- ${block.reason}` : ''}</span>
+                        <button type="button" onClick={() => removeBlockedSlot(idx)} className="text-red-600">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {availabilityError && <p className="text-sm text-red-600">{availabilityError}</p>}
+            {availabilitySuccess && <p className="text-sm text-green-600">{availabilitySuccess}</p>}
+
+            <div>
+              <Button type="button" onClick={saveAvailability} disabled={availabilitySaving}>
+                {availabilitySaving ? 'Saving...' : 'Save Availability Settings'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Card>
 
       {/* Stats Cards */}
       <div className="grid md:grid-cols-4 gap-6 mb-8">
@@ -128,6 +346,12 @@ export const DoctorDashboard = () => {
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
           {error}
+        </div>
+      )}
+      {notice && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6 flex items-center justify-between gap-2">
+          <span>{notice}</span>
+          <button type="button" onClick={() => setNotice('')} className="font-bold">x</button>
         </div>
       )}
 

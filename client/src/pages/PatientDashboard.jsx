@@ -205,6 +205,21 @@ export const PatientDashboard = () => {
             </Card>
           </Link>
 
+          <Link to="/patient/messages" className="block">
+            <Card className="hover:border-cyan-500 border-2 border-transparent transition cursor-pointer group shadow-sm bg-white">
+              <div className="flex gap-4 items-center">
+                <div className="bg-cyan-100 p-4 rounded-xl text-cyan-600 group-hover:bg-cyan-600 group-hover:text-white transition-all shadow-inner">
+                  <AlertCircle size={28} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-800 text-lg">Doctor Messages</h3>
+                  <p className="text-sm text-gray-500">Direct chat with your doctor</p>
+                </div>
+                <ChevronRight className="text-gray-300 group-hover:text-cyan-500 transition-colors" />
+              </div>
+            </Card>
+          </Link>
+
           <Card className="border border-gray-200">
             <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">Next Medicine Reminders</h3>
             {upcomingReminders.length > 0 ? (

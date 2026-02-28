@@ -8,7 +8,9 @@ import {
   updatePatientRecords,
   getPrescriptionByAppointmentId,
   logPatientCall,
-  getDoctorVideoRoom
+  getDoctorVideoRoom,
+  getDoctorAvailability,
+  updateDoctorAvailability
 } from '../controllers/doctorController.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validateObjectIdParam } from '../middleware/validationMiddleware.js';
@@ -25,5 +27,7 @@ router.get('/appointments/:appointmentId/video-room', authenticate, authorize(['
 router.put('/appointments/:appointmentId/status', authenticate, authorize(['doctor']), validateObjectIdParam('appointmentId'), updateAppointmentStatus);
 router.post('/prescriptions', authenticate, authorize(['doctor']), addPrescription);
 router.put('/records/:appointmentId', authenticate, authorize(['doctor']), validateObjectIdParam('appointmentId'), updatePatientRecords);
+router.get('/availability/me', authenticate, authorize(['doctor']), getDoctorAvailability);
+router.put('/availability', authenticate, authorize(['doctor']), updateDoctorAvailability);
 
 export default router;

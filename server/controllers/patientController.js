@@ -10,6 +10,7 @@ import crypto from 'crypto';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { logAction } from '../utils/auditLogger.js';
 import { getPaymentLinkForPrescription } from '../utils/paymentLinkUtils.js';
+import { getDoctorAvailabilityBlock, getBlockedSlotsForDate } from '../utils/doctorAvailability.js';
 
 const toMinutes = (time) => {
   const [hours, minutes] = `${time}`.split(':').map(Number);
@@ -62,6 +63,15 @@ export const bookAppointment = async (req, res) => {
     const doctor = await User.findOne({ _id: doctorId, role: 'doctor' });
     if (!doctor) {
       return sendError(res, 'Doctor not found. Please select a valid doctor.', 404);
+    }
+
+    const availabilityBlock = getDoctorAvailabilityBlock({
+      doctor,
+      appointmentDate: date,
+      appointmentTime: startTime
+    });
+    if (availabilityBlock.blocked) {
+      return sendError(res, availabilityBlock.reason || 'Doctor is not available at this time.', 409);
     }
 
     const appointment = await Appointment.create({
@@ -131,11 +141,12 @@ export const suggestAppointmentTime = async (req, res) => {
     }).select('startTime');
 
     const bookedSlots = new Set(existingAppointments.map((item) => item.startTime));
-    const allSlots = buildDailySlots();
-    const availableSlots = allSlots.filter((slot) => !bookedSlots.has(slot));
+    const allSlots = doctor.availableSlots?.length ? doctor.availableSlots : buildDailySlots();
+    const blockedSlots = getBlockedSlotsForDate({ doctor, appointmentDate, allSlots });
+    const availableSlots = allSlots.filter((slot) => !bookedSlots.has(slot) && !blockedSlots[slot]);
 
     if (availableSlots.length === 0) {
-      return sendSuccess(res, { suggestedSlots: [] }, 'No slots available for the selected date');
+      return sendSuccess(res, { suggestedSlots: [], unavailableReason: 'Doctor is unavailable on the selected date/time window.' }, 'No slots available for the selected date');
     }
 
     const patientHistory = await Appointment.find({ patientId })
@@ -174,7 +185,7 @@ export const getAppointmentSlots = async (req, res) => {
     }
 
     const doctor = await User.findOne({ _id: doctorId, role: 'doctor', isActive: { $ne: false } })
-      .select('availableSlots');
+      .select('availableSlots availability');
     if (!doctor) {
       return sendError(res, 'Doctor not found', 404);
     }
@@ -187,18 +198,25 @@ export const getAppointmentSlots = async (req, res) => {
     }).select('startTime');
 
     const bookedSet = new Set(booked.map((item) => item.startTime));
+    const unavailableMap = getBlockedSlotsForDate({ doctor, appointmentDate: date, allSlots });
     const slots = allSlots.map((slot) => ({
       startTime: slot,
       endTime: computeEndTime(slot),
-      isBooked: bookedSet.has(slot)
+      isBooked: bookedSet.has(slot),
+      isUnavailable: Boolean(unavailableMap[slot]),
+      unavailableReason: unavailableMap[slot] || null
     }));
 
     sendSuccess(res, {
       date,
       doctorId,
       slots,
-      availableSlots: slots.filter((s) => !s.isBooked).map((s) => s.startTime),
-      bookedSlots: slots.filter((s) => s.isBooked).map((s) => s.startTime)
+      availableSlots: slots.filter((s) => !s.isBooked && !s.isUnavailable).map((s) => s.startTime),
+      bookedSlots: slots.filter((s) => s.isBooked).map((s) => s.startTime),
+      unavailableSlots: slots.filter((s) => s.isUnavailable).map((s) => ({
+        startTime: s.startTime,
+        reason: s.unavailableReason
+      }))
     }, 'Slots fetched successfully');
   } catch (error) {
     sendError(res, 'Error fetching appointment slots', 500, error);

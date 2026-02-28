@@ -2,14 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, User, Video } from 'lucide-react';
 import { Card, LoadingSpinner, Button } from '../components/UI';
 import apiClient from '../utils/apiClient';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export const AppointmentsPage = () => {
+  const navigate = useNavigate();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchAppointments();
+    const intervalId = setInterval(fetchAppointments, 15000);
+    const onFocus = () => fetchAppointments();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   const fetchAppointments = async () => {
@@ -147,7 +155,12 @@ export const AppointmentsPage = () => {
                       Cancel Consultation
                     </Button>
                   )}
-                  <Button variant="secondary" size="sm" className="font-bold px-6 flex-1 sm:flex-none bg-white border-gray-200 hover:bg-gray-50">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => navigate('/patient/prescriptions')}
+                    className="font-bold px-6 flex-1 sm:flex-none bg-white border-gray-200 hover:bg-gray-50"
+                  >
                     View Instructions
                   </Button>
                 </div>
